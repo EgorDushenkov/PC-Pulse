@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="dark_bg">#121212</color>
+    <color name="card_bg">#1E1E1E</color>
+
+    <color name="text_white">#E0E0E0</color>
+    <color name="text_gray">#A0A0A0</color>
+    <color name="accent_neon">#00FF99</color>
+    <color name="color_cpu">#BB86FC</color>   <color name="color_ram">#03DAC5</color>   <color name="color_gpu">#FF4081</color>   <color name="color_disk">#FF9800</color>  <color name="color_net">#2196F3</color>   <color name="color_fan">#CDDC39</color>   </resources>

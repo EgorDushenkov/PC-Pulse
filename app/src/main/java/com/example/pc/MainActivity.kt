@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -34,7 +35,8 @@ class MainActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var devicesRecyclerView: RecyclerView
     private lateinit var fabAdd: FloatingActionButton
-    
+    private lateinit var btnOpenConstructor: Button
+
     private lateinit var deviceAdapter: DeviceAdapter
     private val devices = mutableListOf<Device>()
 
@@ -59,16 +61,21 @@ class MainActivity : AppCompatActivity() {
         // 1. Инициализация вьюшек
         devicesRecyclerView = findViewById(R.id.devicesRecyclerView)
         fabAdd = findViewById(R.id.fab_add)
-        
+        btnOpenConstructor = findViewById(R.id.btn_open_constructor)
+
         // 2. Настройка RecyclerView
         setupRecyclerView()
 
         // 3. Загрузка сохраненных устройств
         loadDevices()
 
-        // 4. Логика кнопки "Плюс"
+        // 4. Логика кнопок
         fabAdd.setOnClickListener {
             showAddDeviceDialog()
+        }
+        btnOpenConstructor.setOnClickListener {
+            val intent = Intent(this, CustomDashboardActivity::class.java)
+            startActivity(intent)
         }
 
         // 5. Запускаем цикл опроса
@@ -117,7 +124,7 @@ class MainActivity : AppCompatActivity() {
         builder.setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
         builder.show()
     }
-    
+
     private fun showDeleteDeviceDialog(device: Device) {
         AlertDialog.Builder(this)
             .setTitle("Удалить устройство?")
@@ -164,7 +171,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
     }
-    
+
     // --- Управление сохранением ---
 
     private fun saveDevices() {
@@ -215,11 +222,11 @@ class DeviceAdapter(
         holder.deviceName.text = device.pcName
         holder.deviceStatus.text = device.status
         holder.quickStats.text = device.quickStats
-        
+
         holder.itemView.setOnClickListener { onItemClick(device) }
         holder.itemView.setOnLongClickListener {
             onItemLongClick(device)
-            true 
+            true
         }
     }
 

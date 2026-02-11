@@ -1,19 +1,17 @@
 package com.example.pc
 
 import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.*
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.cardview.widget.CardView
-import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import okhttp3.ResponseBody
@@ -118,12 +116,12 @@ class DashboardActivity : AppCompatActivity() {
         netDownText.text = "↓ ${s.network.down_kbps} KB/s"
         netUpText.text = "↑ ${s.network.up_kbps} KB/s"
 
-        // Update widget containers
-        updateWidgetContainer(controlsContainer, createControlsCard())
-        updateWidgetContainer(mixerContainer, createAudioMixerCard(s.audio_sessions))
-        updateWidgetContainer(disksContainer, createDisksCard(s.disks))
-        updateWidgetContainer(fansContainer, createFansCard(s.fans))
-        updateWidgetContainer(procsContainer, createProcsCard(s.procs))
+        // Update widget containers using WidgetFactory
+        updateWidgetContainer(controlsContainer, WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendShutdownCommand, ::sendSleepCommand))
+        updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this, layoutInflater, s.audio_sessions, userTouchingSliders, ::sendMixerVolume))
+        updateWidgetContainer(disksContainer, WidgetFactory.createDisksCard(this, s.disks))
+        updateWidgetContainer(fansContainer, WidgetFactory.createFansCard(this, s.fans))
+        updateWidgetContainer(procsContainer, WidgetFactory.createProcsCard(this, s.procs, ::showKillProcessDialog))
     }
 
     private fun updateWidgetContainer(container: LinearLayout, widget: View?) {
@@ -132,234 +130,10 @@ class DashboardActivity : AppCompatActivity() {
         container.visibility = if (widget == null) View.GONE else View.VISIBLE
     }
 
-    // WIDGET CREATION HELPERS
-
-    private fun createWidgetCard(): CardView {
-        return CardView(this).apply {
-            radius = 16f
-            setCardBackgroundColor(ContextCompat.getColor(context, R.color.card_bg))
-            val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            params.topMargin = 24
-            layoutParams = params
-        }
-    }
-
-    private fun createWidgetTitle(title: String, colorRes: Int): TextView {
-        return TextView(this).apply {
-            text = title
-            setTextColor(ContextCompat.getColor(context, colorRes))
-            textSize = 14f
-            setPadding(32, 24, 32, 16)
-        }
-    }
-    
-    // WIDGET CREATION FUNCTIONS
-
-    private fun createControlsCard(): CardView {
-        val card = createWidgetCard()
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        layout.addView(createWidgetTitle("CONTROLS", android.R.color.holo_blue_light))
-
-        val contentLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(32, 0, 32, 24)
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-
-        // --- Screenshot Button ---
-        val screenshotButton = Button(this).apply {
-            text = "Screenshot"
-            setOnClickListener { showScreenshotDialog() }
-        }
-        val screenshotParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8 }
-        contentLayout.addView(screenshotButton, screenshotParams)
-
-        // --- Shutdown Button ---
-        val shutdownButton = Button(this).apply {
-            text = "Shutdown"
-            setOnClickListener {
-                showPowerActionDialog("выключить", "Выключение") { sendShutdownCommand() }
-            }
-        }
-        val shutdownParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = 8; marginEnd = 8 }
-        contentLayout.addView(shutdownButton, shutdownParams)
-
-        // --- Sleep Button ---
-        val sleepButton = Button(this).apply {
-            text = "Sleep"
-            setOnClickListener {
-                showPowerActionDialog("отправить в спящий режим", "Сон") { sendSleepCommand() }
-            }
-        }
-        val sleepParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = 8 }
-        contentLayout.addView(sleepButton, sleepParams)
-
-        layout.addView(contentLayout)
-        card.addView(layout)
-        return card
-    }
-
-    private fun createAudioMixerCard(sessions: List<MixerSession>): CardView? {
-        if (sessions.isEmpty()) return null
-
-        val card = createWidgetCard()
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        layout.addView(createWidgetTitle("AUDIO MIXER", R.color.accent_neon))
-
-        val contentLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 0, 32, 24)
-        }
-
-        for (session in sessions) {
-            val view = layoutInflater.inflate(R.layout.item_mixer_app, contentLayout, false)
-            val appNameText = view.findViewById<TextView>(R.id.appNameText)
-            val slider = view.findViewById<SeekBar>(R.id.appVolumeSlider)
-            val percentText = view.findViewById<TextView>(R.id.appVolumePercentText)
-
-            appNameText.text = session.name
-            percentText.text = "${session.volume}%"
-            if (!userTouchingSliders.contains(session.name)) {
-                slider.progress = session.volume
-            }
-            slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (fromUser) { percentText.text = "$progress%" }
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) { userTouchingSliders.add(session.name) }
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    userTouchingSliders.remove(session.name)
-                    seekBar?.let { sendMixerVolume(session.name, it.progress) }
-                }
-            })
-            contentLayout.addView(view)
-        }
-        layout.addView(contentLayout)
-        card.addView(layout)
-        return card
-    }
-
-    private fun createDisksCard(disks: List<DiskData>): CardView? {
-        if (disks.isEmpty()) return null
-
-        val card = createWidgetCard()
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        layout.addView(createWidgetTitle("STORAGE", R.color.color_disk))
-
-        val contentLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 0, 32, 24)
-        }
-
-        for (disk in disks) {
-            val title = TextView(this).apply {
-                text = "${disk.dev} ${disk.used} / ${disk.total} GB"
-                setTextColor(Color.WHITE)
-                textSize = 14f
-            }
-            val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-                max = 100
-                progress = disk.percent.toInt()
-                progressDrawable = ContextCompat.getDrawable(context, R.drawable.bar_progress_disk)
-                layoutParams = LinearLayout.LayoutParams(-1, 20).apply { topMargin = 15; bottomMargin = 20 }
-            }
-            contentLayout.addView(title)
-            contentLayout.addView(bar)
-        }
-        layout.addView(contentLayout)
-        card.addView(layout)
-        return card
-    }
-
-    private fun createFansCard(fans: List<FanData>): CardView? {
-        if (fans.isEmpty()) return null
-
-        val card = createWidgetCard()
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        layout.addView(createWidgetTitle("COOLING (RPM)", R.color.color_fan))
-
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(32, 0, 32, 24)
-        }
-
-        for (fan in fans) {
-            val fanLayout = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-                gravity = Gravity.CENTER
-            }
-            val rpm = TextView(this).apply {
-                text = "${fan.rpm}"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                paint.isFakeBoldText = true
-            }
-            val name = TextView(this).apply {
-                text = fan.name
-                textSize = 10f
-                setTextColor(Color.GRAY)
-            }
-            fanLayout.addView(rpm)
-            fanLayout.addView(name)
-            row.addView(fanLayout)
-        }
-        layout.addView(row)
-        card.addView(layout)
-        return card
-    }
-
-    private fun createProcsCard(procs: List<ProcessData>): CardView? {
-        if (procs.isEmpty()) return null
-
-        val card = createWidgetCard()
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        layout.addView(createWidgetTitle("TOP PROCESSES", android.R.color.darker_gray))
-
-        val contentLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 0, 32, 24)
-        }
-
-        for (proc in procs) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, 8, 0, 8)
-            }
-            val name = TextView(this).apply {
-                text = proc.name
-                setTextColor(Color.WHITE)
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            }
-            val usage = TextView(this).apply {
-                text = "${proc.cpu}%"
-                setTextColor(ContextCompat.getColor(context, R.color.color_cpu))
-                minWidth = 120
-                gravity = Gravity.END
-            }
-            val killButton = ImageView(this).apply {
-                setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-                setColorFilter(Color.parseColor("#FF4081"), android.graphics.PorterDuff.Mode.SRC_IN)
-                val params = LinearLayout.LayoutParams(60, 60)
-                params.marginStart = 24
-                layoutParams = params
-                setOnClickListener { showKillProcessDialog(proc) }
-            }
-            row.addView(name)
-            row.addView(usage)
-            row.addView(killButton)
-            contentLayout.addView(row)
-        }
-        layout.addView(contentLayout)
-        card.addView(layout)
-        return card
-    }
-
     // DIALOGS AND NETWORK CALLS
 
     private fun showScreenshotDialog() {
-        Toast.makeText(this@DashboardActivity, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
         currentApi?.getScreenshot()?.enqueue(object : Callback<ResponseBody> {
             override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
                 if (response.isSuccessful && response.body() != null) {
@@ -422,27 +196,31 @@ class DashboardActivity : AppCompatActivity() {
             .setNegativeButton("Нет", null)
             .show()
     }
-    
+
     private fun sendShutdownCommand() {
-        currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
-            override fun onResponse(call: Call<String>, response: Response<String>) {
-                Toast.makeText(this@DashboardActivity, "PC is shutting down...", Toast.LENGTH_SHORT).show()
-            }
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                Toast.makeText(this@DashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        showPowerActionDialog("выключить", "Выключение") {
+            currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
+                override fun onResponse(call: Call<String>, response: Response<String>) {
+                    Toast.makeText(this@DashboardActivity, "PC is shutting down...", Toast.LENGTH_SHORT).show()
+                }
+                override fun onFailure(call: Call<String>, t: Throwable) {
+                    Toast.makeText(this@DashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
     }
-    
+
     private fun sendSleepCommand() {
-        currentApi?.sleepPC()?.enqueue(object : Callback<String> {
-            override fun onResponse(call: Call<String>, response: Response<String>) {
-                Toast.makeText(this@DashboardActivity, "Putting PC to sleep...", Toast.LENGTH_SHORT).show()
-            }
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                Toast.makeText(this@DashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        showPowerActionDialog("отправить в спящий режим", "Сон") {
+            currentApi?.sleepPC()?.enqueue(object : Callback<String> {
+                override fun onResponse(call: Call<String>, response: Response<String>) {
+                    Toast.makeText(this@DashboardActivity, "Putting PC to sleep...", Toast.LENGTH_SHORT).show()
+                }
+                override fun onFailure(call: Call<String>, t: Throwable) {
+                    Toast.makeText(this@DashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
     }
 
     override fun onDestroy() {

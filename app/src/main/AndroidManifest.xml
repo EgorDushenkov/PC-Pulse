@@ -16,6 +16,9 @@
         android:theme="@style/Theme.PC"
         android:usesCleartextTraffic="true">
         <activity
+            android:name=".CustomDashboardActivity"
+            android:exported="false" />
+        <activity
             android:name=".DashboardActivity"
             android:exported="false" />
         <activity

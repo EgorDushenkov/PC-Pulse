@@ -1,6 +1,7 @@
 package com.example.pc
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Canvas
 import android.graphics.Color
@@ -15,6 +16,7 @@ import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.gson.Gson
 import kotlin.math.roundToInt
 
 @SuppressLint("ClickableViewAccessibility")
@@ -38,6 +40,10 @@ class CustomDashboardActivity : AppCompatActivity() {
     private var startWidth = 0
     private var startHeight = 0
 
+    private val gson = Gson()
+    private val prefsName = "DashboardPrefs"
+    private val layoutKey = "dashboardLayout"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_custom_dashboard)
@@ -58,13 +64,39 @@ class CustomDashboardActivity : AppCompatActivity() {
             cellWidth = mainLayout.width / gridColumns
             cellHeight = mainLayout.height / gridRows
             mainLayout.background = GridDrawable()
-            testLayout = createTestDashboardLayout()
+            testLayout = loadDashboardLayout() // Загружаем лэйаут при старте
             displayDashboard(testLayout)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        saveDashboardLayout() // Сохраняемся при выходе из активити
+    }
+
+    private fun saveDashboardLayout() {
+        if (::testLayout.isInitialized) {
+            val jsonLayout = gson.toJson(testLayout)
+            val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            prefs.edit().putString(layoutKey, jsonLayout).apply()
+        }
+    }
+
+    private fun loadDashboardLayout(): DashboardLayout {
+        val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val jsonLayout = prefs.getString(layoutKey, null)
+        return if (jsonLayout != null) {
+            gson.fromJson(jsonLayout, DashboardLayout::class.java)
+        } else {
+            createTestDashboardLayout() // Возвращаем дефолтный, если ничего не сохранено
         }
     }
 
     private fun toggleEditMode() {
         isEditMode = !isEditMode
+        if (!isEditMode) {
+            saveDashboardLayout() // Сохраняем при выходе из режима редактирования
+        }
         editDashboardButton.text = if (isEditMode) "Готово" else "Редактировать"
         mainLayout.invalidate()
         resizeHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }
@@ -107,7 +139,6 @@ class CustomDashboardActivity : AppCompatActivity() {
             setImageResource(android.R.drawable.ic_menu_crop)
             setBackgroundColor(Color.parseColor("#80FF4081"))
             visibility = if (isEditMode) View.VISIBLE else View.GONE
-            // --- ГЛАВНОЕ ИЗМЕНЕНИЕ: Добавляем "возвышение", чтобы ручка была над виджетом ---
             elevation = 10 * resources.displayMetrics.density
             setOnTouchListener { _, event ->
                 handleResize(widgetView, event)
@@ -130,8 +161,8 @@ class CustomDashboardActivity : AppCompatActivity() {
                 val newY = event.rawY + dY
                 view.x = newX
                 view.y = newY
-                handle?.x = newX + view.width - (handle.width)
-                handle?.y = newY + view.height - (handle.height)
+                handle?.x = newX + view.width - (handle?.width ?: 0)
+                handle?.y = newY + view.height - (handle?.height ?: 0)
             }
             MotionEvent.ACTION_UP -> {
                 val currentConfig = widgetViews[view] ?: return
@@ -139,8 +170,13 @@ class CustomDashboardActivity : AppCompatActivity() {
                 val newGridY = (view.y / cellHeight).roundToInt().coerceIn(0, gridRows - currentConfig.height)
                 val newConfig = currentConfig.copy(x = newGridX, y = newGridY)
 
-                (testLayout.widgets as MutableList)[testLayout.widgets.indexOf(currentConfig)] = newConfig
-                widgetViews[view] = newConfig
+                val widgets = testLayout.widgets.toMutableList()
+                val index = widgets.indexOf(currentConfig)
+                if (index != -1) {
+                    widgets[index] = newConfig
+                    testLayout = testLayout.copy(widgets = widgets)
+                    widgetViews[view] = newConfig
+                }
 
                 applyWidgetLayout(view, newConfig, true)
             }
@@ -164,8 +200,8 @@ class CustomDashboardActivity : AppCompatActivity() {
                 lp.height = (startHeight + (event.rawY - dY)).toInt().coerceAtLeast(cellHeight)
                 widgetView.layoutParams = lp
 
-                handle?.x = widgetView.x + lp.width - (handle.width)
-                handle?.y = widgetView.y + lp.height - (handle.height)
+                handle?.x = widgetView.x + lp.width - (handle?.width ?: 0)
+                handle?.y = widgetView.y + lp.height - (handle?.height ?: 0)
             }
             MotionEvent.ACTION_UP -> {
                 val config = widgetViews[widgetView] ?: return
@@ -173,8 +209,13 @@ class CustomDashboardActivity : AppCompatActivity() {
                 val newHeightInCells = (lp.height / cellHeight.toFloat()).roundToInt().coerceIn(1, gridRows - config.y)
                 val newConfig = config.copy(width = newWidthInCells, height = newHeightInCells)
 
-                widgetViews[widgetView] = newConfig
-                (testLayout.widgets as MutableList)[testLayout.widgets.indexOf(config)] = newConfig
+                val widgets = testLayout.widgets.toMutableList()
+                val index = widgets.indexOf(config)
+                if (index != -1) {
+                    widgets[index] = newConfig
+                    testLayout = testLayout.copy(widgets = widgets)
+                    widgetViews[widgetView] = newConfig
+                }
 
                 applyWidgetLayout(widgetView, newConfig, true)
             }
@@ -191,17 +232,18 @@ class CustomDashboardActivity : AppCompatActivity() {
         view.layoutParams.height = targetHeight
 
         val handle = resizeHandles[view]
-        handle?.layoutParams?.width = 60
-        handle?.layoutParams?.height = 60
+        val handleSize = 60
+        handle?.layoutParams?.width = handleSize
+        handle?.layoutParams?.height = handleSize
 
         if (animate) {
             view.animate().x(targetX).y(targetY).setDuration(200).start()
-            handle?.animate()?.x(targetX + targetWidth - 60)?.y(targetY + targetHeight - 60)?.setDuration(200)?.start()
+            handle?.animate()?.x(targetX + targetWidth - handleSize)?.y(targetY + targetHeight - handleSize)?.setDuration(200)?.start()
         } else {
             view.x = targetX
             view.y = targetY
-            handle?.x = targetX + targetWidth - 60
-            handle?.y = targetY + targetHeight - 60
+            handle?.x = targetX + targetWidth - handleSize
+            handle?.y = targetY + targetHeight - handleSize
         }
         view.requestLayout()
         handle?.requestLayout()

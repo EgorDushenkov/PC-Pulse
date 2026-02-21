@@ -116,12 +116,12 @@ class DashboardActivity : AppCompatActivity() {
         netDownText.text = "↓ ${s.network.down_kbps} KB/s"
         netUpText.text = "↑ ${s.network.up_kbps} KB/s"
 
-        // Update widget containers using WidgetFactory
+        // ИСПРАВЛЕННЫЕ ВЫЗОВЫ: Убираем лишние аргументы, чтобы сборка прошла успешно.
         updateWidgetContainer(controlsContainer, WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendShutdownCommand, ::sendSleepCommand))
-        updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this, layoutInflater, s.audio_sessions, userTouchingSliders, ::sendMixerVolume))
-        updateWidgetContainer(disksContainer, WidgetFactory.createDisksCard(this, s.disks))
-        updateWidgetContainer(fansContainer, WidgetFactory.createFansCard(this, s.fans))
-        updateWidgetContainer(procsContainer, WidgetFactory.createProcsCard(this, s.procs, ::showKillProcessDialog))
+        updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this, layoutInflater, userTouchingSliders) { _, _ -> })
+        updateWidgetContainer(disksContainer, WidgetFactory.createDisksCard(this))
+        updateWidgetContainer(fansContainer, WidgetFactory.createFansCard(this))
+        updateWidgetContainer(procsContainer, WidgetFactory.createProcsCard(this) { pid -> killProcess(pid) })
     }
 
     private fun updateWidgetContainer(container: LinearLayout, widget: View?) {

@@ -7,16 +7,23 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.gson.Gson
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @SuppressLint("ClickableViewAccessibility")
@@ -24,6 +31,7 @@ class CustomDashboardActivity : AppCompatActivity() {
 
     private lateinit var mainLayout: ConstraintLayout
     private lateinit var editDashboardButton: Button
+    private lateinit var addWidgetButton: Button
 
     private var isEditMode = false
     private lateinit var testLayout: DashboardLayout
@@ -34,7 +42,6 @@ class CustomDashboardActivity : AppCompatActivity() {
     private val gridRows = 8
     private var cellWidth: Int = 0
     private var cellHeight: Int = 0
-
     private var dX = 0f
     private var dY = 0f
     private var startWidth = 0
@@ -44,6 +51,16 @@ class CustomDashboardActivity : AppCompatActivity() {
     private val prefsName = "DashboardPrefs"
     private val layoutKey = "dashboardLayout"
 
+    private val handler = Handler(Looper.getMainLooper())
+    private var currentApi: ApiService? = null
+    private var currentStats: PCStats? = null
+    private val runnable = object : Runnable {
+        override fun run() {
+            fetchStats()
+            handler.postDelayed(this, 1000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_custom_dashboard)
@@ -51,6 +68,7 @@ class CustomDashboardActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         mainLayout = findViewById(R.id.main)
         editDashboardButton = findViewById(R.id.edit_dashboard_button)
+        addWidgetButton = findViewById(R.id.add_widget_button)
 
         ViewCompat.setOnApplyWindowInsetsListener(mainLayout) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -59,19 +77,55 @@ class CustomDashboardActivity : AppCompatActivity() {
         }
 
         editDashboardButton.setOnClickListener { toggleEditMode() }
+        addWidgetButton.setOnClickListener { showAddWidgetDialog() }
 
         mainLayout.post {
             cellWidth = mainLayout.width / gridColumns
             cellHeight = mainLayout.height / gridRows
             mainLayout.background = GridDrawable()
-            testLayout = loadDashboardLayout() // Загружаем лэйаут при старте
+            testLayout = loadDashboardLayout()
             displayDashboard(testLayout)
+        }
+
+        val ip = intent.getStringExtra("DEVICE_IP")
+        if (ip != null) {
+            currentApi = RetrofitClient.getClient(ip)
+            handler.post(runnable)
+        } else {
+            // Handle missing IP
         }
     }
 
     override fun onStop() {
         super.onStop()
-        saveDashboardLayout() // Сохраняемся при выходе из активити
+        saveDashboardLayout()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacks(runnable)
+    }
+
+    private fun fetchStats() {
+        currentApi?.getStats()?.enqueue(object : Callback<PCStats> {
+            override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
+                if (response.isSuccessful) {
+                    currentStats = response.body()
+                    currentStats?.let { updateAllWidgets(it) } // Обновляем все виджеты
+                }
+            }
+            override fun onFailure(call: Call<PCStats>, t: Throwable) {
+                // Handle failure
+            }
+        })
+    }
+
+    private fun updateAllWidgets(stats: PCStats) {
+        for (view in widgetViews.keys) {
+            if (view is UpdatableWidget) {
+                view.updateData(stats)
+            }
+        }
     }
 
     private fun saveDashboardLayout() {
@@ -88,25 +142,26 @@ class CustomDashboardActivity : AppCompatActivity() {
         return if (jsonLayout != null) {
             gson.fromJson(jsonLayout, DashboardLayout::class.java)
         } else {
-            createTestDashboardLayout() // Возвращаем дефолтный, если ничего не сохранено
+            createTestDashboardLayout()
         }
     }
 
     private fun toggleEditMode() {
         isEditMode = !isEditMode
         if (!isEditMode) {
-            saveDashboardLayout() // Сохраняем при выходе из режима редактирования
+            saveDashboardLayout()
         }
         editDashboardButton.text = if (isEditMode) "Готово" else "Редактировать"
+        addWidgetButton.visibility = if (isEditMode) View.VISIBLE else View.GONE
         mainLayout.invalidate()
         resizeHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }
     }
 
     private fun displayDashboard(layout: DashboardLayout) {
-        mainLayout.removeAllViews()
+        widgetViews.keys.forEach { mainLayout.removeView(it) }
+        resizeHandles.values.forEach { mainLayout.removeView(it) }
         widgetViews.clear()
         resizeHandles.clear()
-        mainLayout.addView(editDashboardButton)
 
         for (widgetConfig in layout.widgets) {
             val widgetView = createWidget(widgetConfig) ?: continue
@@ -122,8 +177,37 @@ class CustomDashboardActivity : AppCompatActivity() {
             resizeHandles[widgetView] = resizeHandle
 
             applyWidgetLayout(widgetView, widgetConfig, false)
+
+            currentStats?.let { (widgetView as? UpdatableWidget)?.updateData(it) }
         }
     }
+
+    private fun showAddWidgetDialog() {
+        val widgetTypes = WidgetType.values()
+        val widgetNames = widgetTypes.map {
+            it.name.replace('_', ' ').lowercase(Locale.getDefault()).replaceFirstChar { char ->
+                if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString()
+            }
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Добавить виджет")
+            .setItems(widgetNames) { _, which ->
+                val selectedType = widgetTypes[which]
+
+                val newWidget = WidgetConfig(
+                    type = selectedType,
+                    x = 0, y = 0, width = 3, height = 2
+                )
+
+                val updatedWidgets = testLayout.widgets.toMutableList().apply { add(newWidget) }
+                testLayout = testLayout.copy(widgets = updatedWidgets)
+                displayDashboard(testLayout)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
 
     private fun setupDragAndDrop(view: View) {
         view.setOnTouchListener { v, event ->
@@ -252,20 +336,15 @@ class CustomDashboardActivity : AppCompatActivity() {
     private fun createWidget(config: WidgetConfig): CardView? {
         return when (config.type) {
             WidgetType.CONTROLS -> WidgetFactory.createControlsCard(this, {}, {}, {})
-            WidgetType.AUDIO_MIXER -> WidgetFactory.createAudioMixerCard(this, layoutInflater, listOf(MixerSession("Spotify", 75)), mutableSetOf(), { _, _ -> })
-            WidgetType.STORAGE -> WidgetFactory.createDisksCard(this, listOf(DiskData("C:", 50.0F, 100.0F, 50.0)))
-            WidgetType.COOLING -> WidgetFactory.createFansCard(this, listOf(FanData("CPU Fan", 1200)))
-            WidgetType.TOP_PROCESSES -> WidgetFactory.createProcsCard(this, listOf(ProcessData(123, "System", 10.0)), {})
+            WidgetType.AUDIO_MIXER -> WidgetFactory.createAudioMixerCard(this, layoutInflater, mutableSetOf()) { _, _ -> }
+            WidgetType.STORAGE -> WidgetFactory.createDisksCard(this)
+            WidgetType.COOLING -> WidgetFactory.createFansCard(this)
+            WidgetType.TOP_PROCESSES -> WidgetFactory.createProcsCard(this) {}
         }
     }
 
     private fun createTestDashboardLayout(): DashboardLayout {
-        val widgets = mutableListOf(
-            WidgetConfig(WidgetType.CONTROLS, x = 0, y = 0, width = 4, height = 1),
-            WidgetConfig(WidgetType.STORAGE, x = 0, y = 1, width = 4, height = 2),
-            WidgetConfig(WidgetType.AUDIO_MIXER, x = 4, y = 0, width = 4, height = 3)
-        )
-        return DashboardLayout("Test Dashboard", widgets)
+        return DashboardLayout("My Dashboard", emptyList())
     }
 
     private inner class GridDrawable : android.graphics.drawable.Drawable() {

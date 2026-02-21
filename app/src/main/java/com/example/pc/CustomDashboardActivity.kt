@@ -12,7 +12,9 @@ import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
@@ -29,7 +31,8 @@ import kotlin.math.roundToInt
 @SuppressLint("ClickableViewAccessibility")
 class CustomDashboardActivity : AppCompatActivity() {
 
-    private lateinit var mainLayout: ConstraintLayout
+    private lateinit var dashboardCanvas: FrameLayout
+    private lateinit var controlPanel: LinearLayout
     private lateinit var editDashboardButton: Button
     private lateinit var addWidgetButton: Button
 
@@ -37,6 +40,7 @@ class CustomDashboardActivity : AppCompatActivity() {
     private lateinit var testLayout: DashboardLayout
     private val widgetViews = mutableMapOf<View, WidgetConfig>()
     private val resizeHandles = mutableMapOf<View, View>()
+    private val deleteHandles = mutableMapOf<View, View>()
 
     private val gridColumns = 12
     private val gridRows = 8
@@ -66,10 +70,12 @@ class CustomDashboardActivity : AppCompatActivity() {
         setContentView(R.layout.activity_custom_dashboard)
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        mainLayout = findViewById(R.id.main)
+        dashboardCanvas = findViewById(R.id.dashboard_canvas)
+        controlPanel = findViewById(R.id.control_panel)
         editDashboardButton = findViewById(R.id.edit_dashboard_button)
         addWidgetButton = findViewById(R.id.add_widget_button)
 
+        val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         ViewCompat.setOnApplyWindowInsetsListener(mainLayout) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -79,10 +85,10 @@ class CustomDashboardActivity : AppCompatActivity() {
         editDashboardButton.setOnClickListener { toggleEditMode() }
         addWidgetButton.setOnClickListener { showAddWidgetDialog() }
 
-        mainLayout.post {
-            cellWidth = mainLayout.width / gridColumns
-            cellHeight = mainLayout.height / gridRows
-            mainLayout.background = GridDrawable()
+        dashboardCanvas.post {
+            cellWidth = dashboardCanvas.width / gridColumns
+            cellHeight = dashboardCanvas.height / gridRows
+            dashboardCanvas.background = GridDrawable()
             testLayout = loadDashboardLayout()
             displayDashboard(testLayout)
         }
@@ -111,12 +117,10 @@ class CustomDashboardActivity : AppCompatActivity() {
             override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
                 if (response.isSuccessful) {
                     currentStats = response.body()
-                    currentStats?.let { updateAllWidgets(it) } // Обновляем все виджеты
+                    currentStats?.let { updateAllWidgets(it) }
                 }
             }
-            override fun onFailure(call: Call<PCStats>, t: Throwable) {
-                // Handle failure
-            }
+            override fun onFailure(call: Call<PCStats>, t: Throwable) { /* Handle failure */ }
         })
     }
 
@@ -153,28 +157,32 @@ class CustomDashboardActivity : AppCompatActivity() {
         }
         editDashboardButton.text = if (isEditMode) "Готово" else "Редактировать"
         addWidgetButton.visibility = if (isEditMode) View.VISIBLE else View.GONE
-        mainLayout.invalidate()
+        dashboardCanvas.invalidate()
         resizeHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }
+        deleteHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }
     }
 
     private fun displayDashboard(layout: DashboardLayout) {
-        widgetViews.keys.forEach { mainLayout.removeView(it) }
-        resizeHandles.values.forEach { mainLayout.removeView(it) }
+        dashboardCanvas.removeAllViews()
         widgetViews.clear()
         resizeHandles.clear()
+        deleteHandles.clear()
 
         for (widgetConfig in layout.widgets) {
             val widgetView = createWidget(widgetConfig) ?: continue
-
             widgetView.id = View.generateViewId()
-            mainLayout.addView(widgetView, 0)
+            dashboardCanvas.addView(widgetView, 0)
             widgetViews[widgetView] = widgetConfig
 
             setupDragAndDrop(widgetView)
 
             val resizeHandle = createResizeHandle(widgetView)
-            mainLayout.addView(resizeHandle)
+            dashboardCanvas.addView(resizeHandle)
             resizeHandles[widgetView] = resizeHandle
+
+            val deleteHandle = createDeleteHandle(widgetView)
+            dashboardCanvas.addView(deleteHandle)
+            deleteHandles[widgetView] = deleteHandle
 
             applyWidgetLayout(widgetView, widgetConfig, false)
 
@@ -194,12 +202,7 @@ class CustomDashboardActivity : AppCompatActivity() {
             .setTitle("Добавить виджет")
             .setItems(widgetNames) { _, which ->
                 val selectedType = widgetTypes[which]
-
-                val newWidget = WidgetConfig(
-                    type = selectedType,
-                    x = 0, y = 0, width = 3, height = 2
-                )
-
+                val newWidget = WidgetConfig(type = selectedType, x = 0, y = 0, width = 3, height = 2)
                 val updatedWidgets = testLayout.widgets.toMutableList().apply { add(newWidget) }
                 testLayout = testLayout.copy(widgets = updatedWidgets)
                 displayDashboard(testLayout)
@@ -208,14 +211,8 @@ class CustomDashboardActivity : AppCompatActivity() {
             .show()
     }
 
-
     private fun setupDragAndDrop(view: View) {
-        view.setOnTouchListener { v, event ->
-            if (isEditMode) {
-                handleDragAndDrop(v, event)
-                true
-            } else false
-        }
+        view.setOnTouchListener { v, event -> if (isEditMode) { handleDragAndDrop(v, event); true } else false }
     }
 
     private fun createResizeHandle(widgetView: View): View {
@@ -224,29 +221,56 @@ class CustomDashboardActivity : AppCompatActivity() {
             setBackgroundColor(Color.parseColor("#80FF4081"))
             visibility = if (isEditMode) View.VISIBLE else View.GONE
             elevation = 10 * resources.displayMetrics.density
-            setOnTouchListener { _, event ->
-                handleResize(widgetView, event)
-                true
-            }
+            setOnTouchListener { _, event -> handleResize(widgetView, event); true }
         }
     }
 
+    private fun createDeleteHandle(widgetView: View): View {
+        return ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_menu_delete)
+            setBackgroundColor(Color.parseColor("#80FF4040"))
+            visibility = if (isEditMode) View.VISIBLE else View.GONE
+            elevation = 10 * resources.displayMetrics.density
+            setOnClickListener { showDeleteConfirmationDialog(widgetView) }
+        }
+    }
+
+    private fun showDeleteConfirmationDialog(widgetView: View) {
+        AlertDialog.Builder(this)
+            .setTitle("Удалить виджет?")
+            .setMessage("Вы уверены, что хотите удалить этот виджет?")
+            .setPositiveButton("Да") { _, _ ->
+                val configToRemove = widgetViews[widgetView]
+                if (configToRemove != null) {
+                    val updatedWidgets = testLayout.widgets.toMutableList().apply { remove(configToRemove) }
+                    testLayout = testLayout.copy(widgets = updatedWidgets)
+                    displayDashboard(testLayout)
+                }
+            }
+            .setNegativeButton("Нет", null)
+            .show()
+    }
+
     private fun handleDragAndDrop(view: View, event: MotionEvent) {
-        val handle = resizeHandles[view]
+        val resizeHandle = resizeHandles[view]
+        val deleteHandle = deleteHandles[view]
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 dX = view.x - event.rawX
                 dY = view.y - event.rawY
                 view.bringToFront()
-                handle?.bringToFront()
+                resizeHandle?.bringToFront()
+                deleteHandle?.bringToFront()
             }
             MotionEvent.ACTION_MOVE -> {
                 val newX = event.rawX + dX
                 val newY = event.rawY + dY
                 view.x = newX
                 view.y = newY
-                handle?.x = newX + view.width - (handle?.width ?: 0)
-                handle?.y = newY + view.height - (handle?.height ?: 0)
+                resizeHandle?.x = newX + view.width - (resizeHandle?.width ?: 0)
+                resizeHandle?.y = newY + view.height - (resizeHandle?.height ?: 0)
+                deleteHandle?.x = newX
+                deleteHandle?.y = newY
             }
             MotionEvent.ACTION_UP -> {
                 val currentConfig = widgetViews[view] ?: return
@@ -261,7 +285,6 @@ class CustomDashboardActivity : AppCompatActivity() {
                     testLayout = testLayout.copy(widgets = widgets)
                     widgetViews[view] = newConfig
                 }
-
                 applyWidgetLayout(view, newConfig, true)
             }
         }
@@ -269,7 +292,8 @@ class CustomDashboardActivity : AppCompatActivity() {
 
     private fun handleResize(widgetView: View, event: MotionEvent) {
         val lp = widgetView.layoutParams
-        val handle = resizeHandles[widgetView]
+        val resizeHandle = resizeHandles[widgetView]
+        val deleteHandle = deleteHandles[widgetView]
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 dX = event.rawX
@@ -277,15 +301,17 @@ class CustomDashboardActivity : AppCompatActivity() {
                 startWidth = lp.width
                 startHeight = lp.height
                 widgetView.bringToFront()
-                handle?.bringToFront()
+                resizeHandle?.bringToFront()
+                deleteHandle?.bringToFront()
             }
             MotionEvent.ACTION_MOVE -> {
                 lp.width = (startWidth + (event.rawX - dX)).toInt().coerceAtLeast(cellWidth)
                 lp.height = (startHeight + (event.rawY - dY)).toInt().coerceAtLeast(cellHeight)
                 widgetView.layoutParams = lp
-
-                handle?.x = widgetView.x + lp.width - (handle?.width ?: 0)
-                handle?.y = widgetView.y + lp.height - (handle?.height ?: 0)
+                resizeHandle?.x = widgetView.x + lp.width - (resizeHandle?.width ?: 0)
+                resizeHandle?.y = widgetView.y + lp.height - (resizeHandle?.height ?: 0)
+                deleteHandle?.x = widgetView.x
+                deleteHandle?.y = widgetView.y
             }
             MotionEvent.ACTION_UP -> {
                 val config = widgetViews[widgetView] ?: return
@@ -300,7 +326,6 @@ class CustomDashboardActivity : AppCompatActivity() {
                     testLayout = testLayout.copy(widgets = widgets)
                     widgetViews[widgetView] = newConfig
                 }
-
                 applyWidgetLayout(widgetView, newConfig, true)
             }
         }
@@ -315,22 +340,30 @@ class CustomDashboardActivity : AppCompatActivity() {
         view.layoutParams.width = targetWidth
         view.layoutParams.height = targetHeight
 
-        val handle = resizeHandles[view]
         val handleSize = 60
-        handle?.layoutParams?.width = handleSize
-        handle?.layoutParams?.height = handleSize
+        val resizeHandle = resizeHandles[view]
+        resizeHandle?.layoutParams?.width = handleSize
+        resizeHandle?.layoutParams?.height = handleSize
+
+        val deleteHandle = deleteHandles[view]
+        deleteHandle?.layoutParams?.width = handleSize
+        deleteHandle?.layoutParams?.height = handleSize
 
         if (animate) {
             view.animate().x(targetX).y(targetY).setDuration(200).start()
-            handle?.animate()?.x(targetX + targetWidth - handleSize)?.y(targetY + targetHeight - handleSize)?.setDuration(200)?.start()
+            resizeHandle?.animate()?.x(targetX + targetWidth - handleSize)?.y(targetY + targetHeight - handleSize)?.setDuration(200)?.start()
+            deleteHandle?.animate()?.x(targetX)?.y(targetY)?.setDuration(200)?.start()
         } else {
             view.x = targetX
             view.y = targetY
-            handle?.x = targetX + targetWidth - handleSize
-            handle?.y = targetY + targetHeight - handleSize
+            resizeHandle?.x = targetX + targetWidth - handleSize
+            resizeHandle?.y = targetY + targetHeight - handleSize
+            deleteHandle?.x = targetX
+            deleteHandle?.y = targetY
         }
         view.requestLayout()
-        handle?.requestLayout()
+        resizeHandle?.requestLayout()
+        deleteHandle?.requestLayout()
     }
 
     private fun createWidget(config: WidgetConfig): CardView? {

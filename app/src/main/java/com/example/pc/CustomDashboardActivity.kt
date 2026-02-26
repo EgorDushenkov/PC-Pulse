@@ -3,6 +3,7 @@ package com.example.pc
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -15,6 +16,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
@@ -22,6 +24,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.gson.Gson
+import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -97,8 +100,6 @@ class CustomDashboardActivity : AppCompatActivity() {
         if (ip != null) {
             currentApi = RetrofitClient.getClient(ip)
             handler.post(runnable)
-        } else {
-            // Handle missing IP
         }
     }
 
@@ -191,7 +192,7 @@ class CustomDashboardActivity : AppCompatActivity() {
     }
 
     private fun showAddWidgetDialog() {
-        val widgetTypes = WidgetType.values()
+        val widgetTypes = WidgetType.entries.toTypedArray()
         val widgetNames = widgetTypes.map {
             it.name.replace('_', ' ').lowercase(Locale.getDefault()).replaceFirstChar { char ->
                 if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString()
@@ -252,25 +253,25 @@ class CustomDashboardActivity : AppCompatActivity() {
     }
 
     private fun handleDragAndDrop(view: View, event: MotionEvent) {
-        val resizeHandle = resizeHandles[view]
-        val deleteHandle = deleteHandles[view]
+        val resizeHandle = resizeHandles[view]!!
+        val deleteHandle = deleteHandles[view]!!
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 dX = view.x - event.rawX
                 dY = view.y - event.rawY
                 view.bringToFront()
-                resizeHandle?.bringToFront()
-                deleteHandle?.bringToFront()
+                resizeHandle.bringToFront()
+                deleteHandle.bringToFront()
             }
             MotionEvent.ACTION_MOVE -> {
                 val newX = event.rawX + dX
                 val newY = event.rawY + dY
                 view.x = newX
                 view.y = newY
-                resizeHandle?.x = newX + view.width - (resizeHandle?.width ?: 0)
-                resizeHandle?.y = newY + view.height - (resizeHandle?.height ?: 0)
-                deleteHandle?.x = newX
-                deleteHandle?.y = newY
+                resizeHandle.x = newX + view.width - resizeHandle.width
+                resizeHandle.y = newY + view.height - resizeHandle.height
+                deleteHandle.x = newX
+                deleteHandle.y = newY
             }
             MotionEvent.ACTION_UP -> {
                 val currentConfig = widgetViews[view] ?: return
@@ -292,8 +293,8 @@ class CustomDashboardActivity : AppCompatActivity() {
 
     private fun handleResize(widgetView: View, event: MotionEvent) {
         val lp = widgetView.layoutParams
-        val resizeHandle = resizeHandles[widgetView]
-        val deleteHandle = deleteHandles[widgetView]
+        val resizeHandle = resizeHandles[widgetView]!!
+        val deleteHandle = deleteHandles[widgetView]!!
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 dX = event.rawX
@@ -301,17 +302,17 @@ class CustomDashboardActivity : AppCompatActivity() {
                 startWidth = lp.width
                 startHeight = lp.height
                 widgetView.bringToFront()
-                resizeHandle?.bringToFront()
-                deleteHandle?.bringToFront()
+                resizeHandle.bringToFront()
+                deleteHandle.bringToFront()
             }
             MotionEvent.ACTION_MOVE -> {
                 lp.width = (startWidth + (event.rawX - dX)).toInt().coerceAtLeast(cellWidth)
                 lp.height = (startHeight + (event.rawY - dY)).toInt().coerceAtLeast(cellHeight)
                 widgetView.layoutParams = lp
-                resizeHandle?.x = widgetView.x + lp.width - (resizeHandle?.width ?: 0)
-                resizeHandle?.y = widgetView.y + lp.height - (resizeHandle?.height ?: 0)
-                deleteHandle?.x = widgetView.x
-                deleteHandle?.y = widgetView.y
+                resizeHandle.x = widgetView.x + lp.width - resizeHandle.width
+                resizeHandle.y = widgetView.y + lp.height - resizeHandle.height
+                deleteHandle.x = widgetView.x
+                deleteHandle.y = widgetView.y
             }
             MotionEvent.ACTION_UP -> {
                 val config = widgetViews[widgetView] ?: return
@@ -368,16 +369,100 @@ class CustomDashboardActivity : AppCompatActivity() {
 
     private fun createWidget(config: WidgetConfig): CardView? {
         return when (config.type) {
-            WidgetType.CONTROLS -> WidgetFactory.createControlsCard(this, {}, {}, {})
-            WidgetType.AUDIO_MIXER -> WidgetFactory.createAudioMixerCard(this, layoutInflater, mutableSetOf()) { _, _ -> }
+            WidgetType.CONTROLS -> WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand)
+            WidgetType.AUDIO_MIXER -> WidgetFactory.createAudioMixerCard(this) { name, vol -> sendMixerVolume(name, vol) }
             WidgetType.STORAGE -> WidgetFactory.createDisksCard(this)
             WidgetType.COOLING -> WidgetFactory.createFansCard(this)
-            WidgetType.TOP_PROCESSES -> WidgetFactory.createProcsCard(this) {}
+            WidgetType.TOP_PROCESSES -> WidgetFactory.createProcsCard(this) { pid -> killProcess(pid) }
         }
     }
 
     private fun createTestDashboardLayout(): DashboardLayout {
         return DashboardLayout("My Dashboard", emptyList())
+    }
+
+    // --- Commands logic ---
+
+    private fun showScreenshotDialog() {
+        Toast.makeText(this, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
+        currentApi?.getScreenshot()?.enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                if (response.isSuccessful && response.body() != null) {
+                    val bytes = response.body()!!.bytes()
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+
+                    val view = layoutInflater.inflate(R.layout.dialog_screenshot, null)
+                    val imgView = view.findViewById<ImageView>(R.id.screenshotImage)
+                    imgView.setImageBitmap(bitmap)
+
+                    AlertDialog.Builder(this@CustomDashboardActivity)
+                        .setTitle("PC Screenshot")
+                        .setView(view)
+                        .setPositiveButton("Close") { d, _ -> d.dismiss() }
+                        .show()
+                } else {
+                    Toast.makeText(applicationContext, "Failed to get image", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                Toast.makeText(applicationContext, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun sendShutdownCommand() {
+        showPowerActionDialog("выключить", "Выключение") {
+            currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
+                override fun onResponse(call: Call<String>, response: Response<String>) {
+                    Toast.makeText(this@CustomDashboardActivity, "PC is shutting down...", Toast.LENGTH_SHORT).show()
+                }
+                override fun onFailure(call: Call<String>, t: Throwable) {
+                    Toast.makeText(this@CustomDashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+    }
+
+    private fun sendSleepCommand() {
+        showPowerActionDialog("отправить в спящий режим", "Сон") {
+            currentApi?.sleepPC()?.enqueue(object : Callback<String> {
+                override fun onResponse(call: Call<String>, response: Response<String>) {
+                    Toast.makeText(this@CustomDashboardActivity, "Putting PC to sleep...", Toast.LENGTH_SHORT).show()
+                }
+                override fun onFailure(call: Call<String>, t: Throwable) {
+                    Toast.makeText(this@CustomDashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+    }
+
+    private fun showPowerActionDialog(actionName: String, title: String, onConfirm: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage("Вы уверены, что хотите $actionName ПК?")
+            .setPositiveButton("Да") { _, _ -> onConfirm() }
+            .setNegativeButton("Нет", null)
+            .show()
+    }
+
+    private fun killProcess(pid: Int) {
+        currentApi?.killProcess(pid)?.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                val message = if (response.isSuccessful) response.body() ?: "Процесс завершен" else "Ошибка: ${response.code()}"
+                Toast.makeText(this@CustomDashboardActivity, message, Toast.LENGTH_SHORT).show()
+                handler.postDelayed({ fetchStats() }, 250)
+            }
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                Toast.makeText(this@CustomDashboardActivity, "Сетевая ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun sendMixerVolume(appName: String, volume: Int) {
+        currentApi?.setMixerVolume(appName, volume)?.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {}
+            override fun onFailure(call: Call<String>, t: Throwable) {}
+        })
     }
 
     private inner class GridDrawable : android.graphics.drawable.Drawable() {
@@ -391,7 +476,7 @@ class CustomDashboardActivity : AppCompatActivity() {
         }
         override fun setAlpha(alpha: Int) { paint.alpha = alpha }
         override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { paint.colorFilter = colorFilter }
-        @SuppressLint("Deprecateda-level")
+        @Deprecated("Deprecated in Java")
         override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
     }
 }

@@ -9,4 +9,11 @@
     <color name="text_white">#E0E0E0</color>
     <color name="text_gray">#A0A0A0</color>
     <color name="accent_neon">#00FF99</color>
-    <color name="color_cpu">#BB86FC</color>   <color name="color_ram">#03DAC5</color>   <color name="color_gpu">#FF4081</color>   <color name="color_disk">#FF9800</color>  <color name="color_net">#2196F3</color>   <color name="color_fan">#CDDC39</color>   </resources>
+    <color name="color_cpu">#BB86FC</color>
+    <color name="color_ram">#03DAC5</color>
+    <color name="color_gpu">#FF4081</color>
+    <color name="color_disk">#FF9800</color>
+    <color name="color_net">#2196F3</color>
+    <color name="color_cooling">#FFEB3B</color>
+    <color name="color_procs">#FFD600</color>
+</resources>

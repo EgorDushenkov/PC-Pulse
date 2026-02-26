@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -23,7 +22,6 @@ import retrofit2.Response
 
 class DashboardActivity : AppCompatActivity() {
 
-    // Вьюшки
     private lateinit var dashIpText: TextView
     private lateinit var uptimeText: TextView
     private lateinit var cpuSpeedometer: SpeedometerView
@@ -41,11 +39,10 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var procsContainer: LinearLayout
     private lateinit var mixerContainer: LinearLayout
     private lateinit var controlsContainer: LinearLayout
-    private lateinit var openConstructorButton: Button // Новая кнопка
+    private lateinit var openConstructorButton: Button
 
     private val handler = Handler(Looper.getMainLooper())
     private var currentApi: ApiService? = null
-    private val userTouchingSliders = mutableSetOf<String>()
 
     private val runnable = object : Runnable {
         override fun run() {
@@ -72,7 +69,6 @@ class DashboardActivity : AppCompatActivity() {
             dashIpText.text = "IP: $ip"
             handler.post(runnable)
 
-            // Настройка кнопки конструктора
             openConstructorButton.setOnClickListener {
                 val intent = Intent(this, CustomDashboardActivity::class.java)
                 intent.putExtra("DEVICE_IP", ip)
@@ -99,7 +95,7 @@ class DashboardActivity : AppCompatActivity() {
         procsContainer = findViewById(R.id.procsContainer)
         mixerContainer = findViewById(R.id.mixerContainer)
         controlsContainer = findViewById(R.id.controlsContainer)
-        openConstructorButton = findViewById(R.id.openConstructorButton) // Находим кнопку
+        openConstructorButton = findViewById(R.id.openConstructorButton)
     }
 
     private fun fetchStats() {
@@ -112,10 +108,9 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     private fun updateUI(s: PCStats) {
-        // Update non-widget views
         uptimeText.text = "Uptime: ${s.uptime} h"
         cpuSpeedometer.setValue(s.cpu.usage.toFloat())
-        cpuNameText.text = s.cpu.name.replace("AMD ", "").replace("Intel(R) Core(TM) ", "").replace("Ryzen ", "R ").replace("with Radeon Graphics", "").trim()
+        cpuNameText.text = s.cpu.name.replace("AMD ", "").replace("Intel(R) Core(TM) ", "").replace("Ryzen ", "R ").trim()
         cpuDetailText.text = "${s.cpu.freq.toInt()} MHz | ${s.cpu.temp}°C"
         ramSpeedometer.setValue(s.ram.usage.toFloat())
         ramDetailText.text = "${s.ram.used} / ${s.ram.total} GB"
@@ -123,25 +118,30 @@ class DashboardActivity : AppCompatActivity() {
             gpuSpeedometer.setValue(g.load.toFloat())
             gpuNameText.text = g.name.replace("NVIDIA GeForce ", "").replace("AMD Radeon ", "").trim()
             gpuDetailText.text = "${g.temp}°C | VRAM: ${g.mem_p}%"
-        } ?: gpuSpeedometer.setValue(0f)
+        }
         netDownText.text = "↓ ${s.network.down_kbps} KB/s"
         netUpText.text = "↑ ${s.network.up_kbps} KB/s"
 
-        // ИСПРАВЛЕННЫЕ ВЫЗОВЫ
-        updateWidgetContainer(controlsContainer, WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendShutdownCommand, ::sendSleepCommand))
-        updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this, layoutInflater, userTouchingSliders) { _, _ -> })
+        updateWidgetContainer(controlsContainer, WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand))
+        updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this) { name, vol -> sendMixerVolume(name, vol) })
         updateWidgetContainer(disksContainer, WidgetFactory.createDisksCard(this))
         updateWidgetContainer(fansContainer, WidgetFactory.createFansCard(this))
         updateWidgetContainer(procsContainer, WidgetFactory.createProcsCard(this) { pid -> killProcess(pid) })
+
+        // Update existing widgets if they are already in containers
+        (controlsContainer.getChildAt(0) as? UpdatableWidget)?.updateData(s)
+        (mixerContainer.getChildAt(0) as? UpdatableWidget)?.updateData(s)
+        (disksContainer.getChildAt(0) as? UpdatableWidget)?.updateData(s)
+        (fansContainer.getChildAt(0) as? UpdatableWidget)?.updateData(s)
+        (procsContainer.getChildAt(0) as? UpdatableWidget)?.updateData(s)
     }
 
-    private fun updateWidgetContainer(container: LinearLayout, widget: View?) {
-        container.removeAllViews()
-        widget?.let { container.addView(it) }
-        container.visibility = if (widget == null) View.GONE else View.VISIBLE
+    private fun updateWidgetContainer(container: LinearLayout, widget: View) {
+        if (container.childCount == 0) {
+            container.addView(widget)
+        }
+        container.visibility = View.VISIBLE
     }
-
-    // DIALOGS AND NETWORK CALLS
 
     private fun showScreenshotDialog() {
         Toast.makeText(this, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
@@ -150,23 +150,12 @@ class DashboardActivity : AppCompatActivity() {
                 if (response.isSuccessful && response.body() != null) {
                     val bytes = response.body()!!.bytes()
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-
                     val view = layoutInflater.inflate(R.layout.dialog_screenshot, null)
-                    val imgView = view.findViewById<ImageView>(R.id.screenshotImage)
-                    imgView.setImageBitmap(bitmap)
-
-                    AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("PC Screenshot")
-                        .setView(view)
-                        .setPositiveButton("Close") { d, _ -> d.dismiss() }
-                        .show()
-                } else {
-                    Toast.makeText(applicationContext, "Failed to get image", Toast.LENGTH_SHORT).show()
+                    view.findViewById<ImageView>(R.id.screenshotImage).setImageBitmap(bitmap)
+                    AlertDialog.Builder(this@DashboardActivity).setTitle("PC Screenshot").setView(view).setPositiveButton("Close", null).show()
                 }
             }
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                Toast.makeText(applicationContext, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {}
         })
     }
 
@@ -177,46 +166,20 @@ class DashboardActivity : AppCompatActivity() {
         })
     }
 
-    private fun showKillProcessDialog(proc: ProcessData) {
-        AlertDialog.Builder(this)
-            .setTitle("Завершить процесс?")
-            .setMessage("Вы уверены, что хотите завершить '${proc.name}' (PID: ${proc.pid})?")
-            .setPositiveButton("Да") { _, _ -> killProcess(proc.pid) }
-            .setNegativeButton("Нет", null)
-            .show()
-    }
-
     private fun killProcess(pid: Int) {
         currentApi?.killProcess(pid)?.enqueue(object : Callback<String> {
             override fun onResponse(call: Call<String>, response: Response<String>) {
-                val message = if (response.isSuccessful) response.body() ?: "Процесс завершен" else "Ошибка: ${response.code()}"
-                Toast.makeText(this@DashboardActivity, message, Toast.LENGTH_SHORT).show()
-                handler.postDelayed({ fetchStats() }, 250) // Refresh stats after action
+                fetchStats()
             }
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                Toast.makeText(this@DashboardActivity, "Сетевая ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
+            override fun onFailure(call: Call<String>, t: Throwable) {}
         })
-    }
-
-    private fun showPowerActionDialog(actionName: String, title: String, onConfirm: () -> Unit) {
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage("Вы уверены, что хотите $actionName ПК?")
-            .setPositiveButton("Да") { _, _ -> onConfirm() }
-            .setNegativeButton("Нет", null)
-            .show()
     }
 
     private fun sendShutdownCommand() {
         showPowerActionDialog("выключить", "Выключение") {
             currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {
-                    Toast.makeText(this@DashboardActivity, "PC is shutting down...", Toast.LENGTH_SHORT).show()
-                }
-                override fun onFailure(call: Call<String>, t: Throwable) {
-                    Toast.makeText(this@DashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
+                override fun onResponse(call: Call<String>, response: Response<String>) {}
+                override fun onFailure(call: Call<String>, t: Throwable) {}
             })
         }
     }
@@ -224,14 +187,14 @@ class DashboardActivity : AppCompatActivity() {
     private fun sendSleepCommand() {
         showPowerActionDialog("отправить в спящий режим", "Сон") {
             currentApi?.sleepPC()?.enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {
-                    Toast.makeText(this@DashboardActivity, "Putting PC to sleep...", Toast.LENGTH_SHORT).show()
-                }
-                override fun onFailure(call: Call<String>, t: Throwable) {
-                    Toast.makeText(this@DashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
+                override fun onResponse(call: Call<String>, response: Response<String>) {}
+                override fun onFailure(call: Call<String>, t: Throwable) {}
             })
         }
+    }
+
+    private fun showPowerActionDialog(actionName: String, title: String, onConfirm: () -> Unit) {
+        AlertDialog.Builder(this).setTitle(title).setMessage("Вы уверены, что хотите $actionName ПК?").setPositiveButton("Да") { _, _ -> onConfirm() }.setNegativeButton("Нет", null).show()
     }
 
     override fun onDestroy() {

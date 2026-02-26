@@ -6,14 +6,15 @@ import android.view.LayoutInflater
 object WidgetFactory {
 
     fun createControlsCard(context: Context, onScreenshot: () -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit): ControlsWidgetView {
-        // Создаем виджет и сразу передаем в него коллбэки
         return ControlsWidgetView(context).apply {
             setCallbacks(onScreenshot, onSleep, onShutdown)
         }
     }
 
-    fun createAudioMixerCard(context: Context, inflater: LayoutInflater, mutedSessions: MutableSet<String>, onMute: (String, Boolean) -> Unit): AudioMixerWidgetView {
-        return AudioMixerWidgetView(context) // TODO: Передать коллбэки
+    fun createAudioMixerCard(context: Context, onVolumeChange: (String, Int) -> Unit): AudioMixerWidgetView {
+        return AudioMixerWidgetView(context).apply {
+            setCallbacks(onVolumeChange)
+        }
     }
 
     fun createDisksCard(context: Context): StorageWidgetView {
@@ -25,6 +26,8 @@ object WidgetFactory {
     }
 
     fun createProcsCard(context: Context, onKill: (Int) -> Unit): TopProcessesWidgetView {
-        return TopProcessesWidgetView(context) // TODO: Передать коллбэки
+        return TopProcessesWidgetView(context).apply {
+            setCallbacks(onKill)
+        }
     }
 }

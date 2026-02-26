@@ -2,6 +2,8 @@ package com.example.pc
 
 import android.content.Context
 import android.util.AttributeSet
+import android.view.LayoutInflater
+import android.widget.Button
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 
@@ -13,16 +15,27 @@ class ControlsWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {
 
-    private val textView: TextView
+    // Находим кнопки из макета
+    private val screenshotButton: Button
+    private val sleepButton: Button
+    private val shutdownButton: Button
 
     init {
-        setContentPadding(50, 50, 50, 50)
-        textView = TextView(context).apply { text = "Controls Widget" }
-        addView(textView)
+        val view = LayoutInflater.from(context).inflate(R.layout.widget_controls, this, true)
+        screenshotButton = view.findViewById(R.id.screenshot_button)
+        sleepButton = view.findViewById(R.id.sleep_button)
+        shutdownButton = view.findViewById(R.id.shutdown_button)
+    }
+
+    // Новый метод для установки коллбэков
+    fun setCallbacks(onScreenshot: () -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
+        screenshotButton.setOnClickListener { onScreenshot() }
+        sleepButton.setOnClickListener { onSleep() }
+        shutdownButton.setOnClickListener { onShutdown() }
     }
 
     override fun updateData(stats: PCStats) {
-        textView.text = "Controls for ${stats.pc_name}"
+        // Обновление не требуется
     }
 }
 

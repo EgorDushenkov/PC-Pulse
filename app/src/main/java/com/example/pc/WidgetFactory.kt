@@ -5,10 +5,11 @@ import android.view.LayoutInflater
 
 object WidgetFactory {
 
-    // Фабрика создает виджеты. Данные в них будут загружаться через UpdatableWidget.updateData()
-
     fun createControlsCard(context: Context, onScreenshot: () -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit): ControlsWidgetView {
-        return ControlsWidgetView(context) // TODO: Передать коллбэки
+        // Создаем виджет и сразу передаем в него коллбэки
+        return ControlsWidgetView(context).apply {
+            setCallbacks(onScreenshot, onSleep, onShutdown)
+        }
     }
 
     fun createAudioMixerCard(context: Context, inflater: LayoutInflater, mutedSessions: MutableSet<String>, onMute: (String, Boolean) -> Unit): AudioMixerWidgetView {

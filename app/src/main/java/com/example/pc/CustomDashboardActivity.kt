@@ -3,6 +3,7 @@ package com.example.pc
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -15,6 +16,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
@@ -22,6 +24,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.gson.Gson
+import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -211,6 +214,57 @@ class CustomDashboardActivity : AppCompatActivity() {
             .show()
     }
 
+    // --- НОВЫЕ ФУНКЦИИ ДЛЯ УПРАВЛЕНИЯ ПК ---
+    private fun sendScreenshotCommand() {
+        Toast.makeText(this, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
+        currentApi?.getScreenshot()?.enqueue(object : Callback<ResponseBody> {
+            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
+                if (response.isSuccessful && response.body() != null) {
+                    val bytes = response.body()!!.bytes()
+                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+
+                    val view = layoutInflater.inflate(R.layout.dialog_screenshot, null)
+                    val imgView = view.findViewById<ImageView>(R.id.screenshotImage)
+                    imgView.setImageBitmap(bitmap)
+
+                    AlertDialog.Builder(this@CustomDashboardActivity)
+                        .setTitle("PC Screenshot")
+                        .setView(view)
+                        .setPositiveButton("Close") { d, _ -> d.dismiss() }
+                        .show()
+                } else {
+                    Toast.makeText(applicationContext, "Failed to get image", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                Toast.makeText(applicationContext, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun sendSleepCommand() {
+        currentApi?.sleepPC()?.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                Toast.makeText(this@CustomDashboardActivity, "Putting PC to sleep...", Toast.LENGTH_SHORT).show()
+            }
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                Toast.makeText(this@CustomDashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun sendShutdownCommand() {
+        currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                Toast.makeText(this@CustomDashboardActivity, "PC is shutting down...", Toast.LENGTH_SHORT).show()
+            }
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                Toast.makeText(this@CustomDashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+    // ----------------------------------------
+
     private fun setupDragAndDrop(view: View) {
         view.setOnTouchListener { v, event -> if (isEditMode) { handleDragAndDrop(v, event); true } else false }
     }
@@ -368,7 +422,8 @@ class CustomDashboardActivity : AppCompatActivity() {
 
     private fun createWidget(config: WidgetConfig): CardView? {
         return when (config.type) {
-            WidgetType.CONTROLS -> WidgetFactory.createControlsCard(this, {}, {}, {})
+            // Передаем реальные функции в фабрику
+            WidgetType.CONTROLS -> WidgetFactory.createControlsCard(this, ::sendScreenshotCommand, ::sendSleepCommand, ::sendShutdownCommand)
             WidgetType.AUDIO_MIXER -> WidgetFactory.createAudioMixerCard(this, layoutInflater, mutableSetOf()) { _, _ -> }
             WidgetType.STORAGE -> WidgetFactory.createDisksCard(this)
             WidgetType.COOLING -> WidgetFactory.createFansCard(this)

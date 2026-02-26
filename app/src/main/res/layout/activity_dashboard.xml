@@ -266,6 +266,16 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
 
+        <!-- Кнопка перехода в Конструктор -->
+        <Button
+            android:id="@+id/openConstructorButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Открыть Конструктор"
+            app:backgroundTint="@color/card_bg"
+            android:textColor="@color/text_white"/>
+
         <Space
             android:layout_width="match_parent"
             android:layout_height="50dp" />

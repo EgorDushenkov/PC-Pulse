@@ -1,21 +1,19 @@
 package com.example.pc
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 
-/**
- * Кастомный View для виджета Управления. 
- * Реализует UpdatableWidget для обновления данных.
- */
 class ControlsWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {
 
-    // Находим кнопки из макета
     private val screenshotButton: Button
     private val sleepButton: Button
     private val shutdownButton: Button
@@ -27,21 +25,15 @@ class ControlsWidgetView @JvmOverloads constructor(
         shutdownButton = view.findViewById(R.id.shutdown_button)
     }
 
-    // Новый метод для установки коллбэков
     fun setCallbacks(onScreenshot: () -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
         screenshotButton.setOnClickListener { onScreenshot() }
         sleepButton.setOnClickListener { onSleep() }
         shutdownButton.setOnClickListener { onShutdown() }
     }
 
-    override fun updateData(stats: PCStats) {
-        // Обновление не требуется
-    }
+    override fun updateData(stats: PCStats) { /* Не требуется */ }
 }
 
-/**
- * Кастомный View для виджета Аудиомикшера.
- */
 class AudioMixerWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {
@@ -60,30 +52,43 @@ class AudioMixerWidgetView @JvmOverloads constructor(
     }
 }
 
-/**
- * Кастомный View для виджета Хранилища.
- */
+// --- ИЗМЕНЕННЫЙ КЛАСС WIDGET'А ХРАНИЛИЩА ---
 class StorageWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {
 
-    private val textView: TextView
+    private val disksContainer: LinearLayout
+    private val inflater: LayoutInflater = LayoutInflater.from(context)
 
     init {
-        setContentPadding(50, 50, 50, 50)
-        textView = TextView(context).apply { text = "Storage Widget" }
-        addView(textView)
+        // "Надуваем" основной макет виджета
+        val view = inflater.inflate(R.layout.widget_storage, this, true)
+        disksContainer = view.findViewById(R.id.disks_container)
     }
 
+    @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
-        val diskCount = stats.disks.size
-        textView.text = "Storage: $diskCount disks found"
+        // Очищаем контейнер перед добавлением новых данных
+        disksContainer.removeAllViews()
+
+        // Для каждого диска из статистики создаем и добавляем его View
+        for (disk in stats.disks) {
+            val diskView = inflater.inflate(R.layout.item_widget_disk, disksContainer, false)
+
+            val diskName = diskView.findViewById<TextView>(R.id.disk_name)
+            val diskValue = diskView.findViewById<TextView>(R.id.disk_value)
+            val diskProgress = diskView.findViewById<ProgressBar>(R.id.disk_progress)
+
+            diskName.text = disk.dev.replace("\\", "")
+            diskValue.text = "${disk.used} / ${disk.total} GB"
+            diskProgress.progress = disk.percent.toInt()
+
+            disksContainer.addView(diskView)
+        }
     }
 }
+// ---------------------------------------------
 
-/**
- * Кастомный View для виджета Охлаждения.
- */
 class CoolingWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {
@@ -99,9 +104,6 @@ class CoolingWidgetView @JvmOverloads constructor(
     }
 }
 
-/**
- * Кастомный View для виджета Процессов.
- */
 class TopProcessesWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {

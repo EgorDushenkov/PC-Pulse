@@ -1,11 +1,13 @@
 package com.example.pc
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -39,6 +41,7 @@ class DashboardActivity : AppCompatActivity() {
     private lateinit var procsContainer: LinearLayout
     private lateinit var mixerContainer: LinearLayout
     private lateinit var controlsContainer: LinearLayout
+    private lateinit var openConstructorButton: Button // Новая кнопка
 
     private val handler = Handler(Looper.getMainLooper())
     private var currentApi: ApiService? = null
@@ -68,6 +71,13 @@ class DashboardActivity : AppCompatActivity() {
             currentApi = RetrofitClient.getClient(ip)
             dashIpText.text = "IP: $ip"
             handler.post(runnable)
+
+            // Настройка кнопки конструктора
+            openConstructorButton.setOnClickListener {
+                val intent = Intent(this, CustomDashboardActivity::class.java)
+                intent.putExtra("DEVICE_IP", ip)
+                startActivity(intent)
+            }
         }
     }
 
@@ -89,6 +99,7 @@ class DashboardActivity : AppCompatActivity() {
         procsContainer = findViewById(R.id.procsContainer)
         mixerContainer = findViewById(R.id.mixerContainer)
         controlsContainer = findViewById(R.id.controlsContainer)
+        openConstructorButton = findViewById(R.id.openConstructorButton) // Находим кнопку
     }
 
     private fun fetchStats() {
@@ -116,7 +127,7 @@ class DashboardActivity : AppCompatActivity() {
         netDownText.text = "↓ ${s.network.down_kbps} KB/s"
         netUpText.text = "↑ ${s.network.up_kbps} KB/s"
 
-        // ИСПРАВЛЕННЫЕ ВЫЗОВЫ: Убираем лишние аргументы, чтобы сборка прошла успешно.
+        // ИСПРАВЛЕННЫЕ ВЫЗОВЫ
         updateWidgetContainer(controlsContainer, WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendShutdownCommand, ::sendSleepCommand))
         updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this, layoutInflater, userTouchingSliders) { _, _ -> })
         updateWidgetContainer(disksContainer, WidgetFactory.createDisksCard(this))

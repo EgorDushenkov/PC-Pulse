@@ -9,6 +9,8 @@ import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
@@ -49,27 +51,88 @@ class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
 
 class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
     private val title: TextView
-    private val container: LinearLayout
+    private val mixerListContainer: LinearLayout
     private var onVolumeChange: ((String, Int) -> Unit)? = null
+    private val activeSliders = mutableSetOf<String>()
 
     init {
-        container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val rootLayout = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         title = TextView(context).apply {
             text = "AUDIO MIXER"
             setTextColor(ContextCompat.getColor(context, R.color.accent_neon))
             textSize = 12f
             paint.isFakeBoldText = true
+            setPadding(0, 0, 0, 8)
         }
-        container.addView(title)
-        addView(container)
+        rootLayout.addView(title)
+
+        val scrollView = ScrollView(context).apply {
+            isVerticalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        mixerListContainer = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        scrollView.addView(mixerListContainer)
+        rootLayout.addView(scrollView)
+        
+        addView(rootLayout)
     }
 
     fun setCallbacks(onVolumeChange: (String, Int) -> Unit) {
         this.onVolumeChange = onVolumeChange
     }
 
+    @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
-        // Implementation for volume control will be added later
+        val currentApps = stats.audio_sessions.map { it.name }.toSet()
+        val existingApps = (0 until mixerListContainer.childCount).map { 
+            mixerListContainer.getChildAt(it).tag as String 
+        }.toSet()
+
+        if (currentApps != existingApps) {
+            mixerListContainer.removeAllViews()
+            for (session in stats.audio_sessions) {
+                val view = LayoutInflater.from(context).inflate(R.layout.item_mixer_app, mixerListContainer, false)
+                view.tag = session.name
+                val nameText = view.findViewById<TextView>(R.id.appNameText)
+                val slider = view.findViewById<SeekBar>(R.id.appVolumeSlider)
+                val percentText = view.findViewById<TextView>(R.id.appVolumePercentText)
+
+                nameText.text = session.name
+                slider.progress = session.volume
+                percentText.text = "${session.volume}%"
+
+                slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        if (fromUser) percentText.text = "$progress%"
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                        activeSliders.add(session.name)
+                    }
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                        activeSliders.remove(session.name)
+                        onVolumeChange?.invoke(session.name, slider.progress)
+                    }
+                })
+                mixerListContainer.addView(view)
+            }
+        } else {
+            for (i in 0 until mixerListContainer.childCount) {
+                val view = mixerListContainer.getChildAt(i)
+                val appName = view.tag as String
+                if (appName !in activeSliders) {
+                    val session = stats.audio_sessions.find { it.name == appName }
+                    if (session != null) {
+                        val slider = view.findViewById<SeekBar>(R.id.appVolumeSlider)
+                        val percentText = view.findViewById<TextView>(R.id.appVolumePercentText)
+                        slider.progress = session.volume
+                        percentText.text = "${session.volume}%"
+                    }
+                }
+            }
+        }
     }
 }
 

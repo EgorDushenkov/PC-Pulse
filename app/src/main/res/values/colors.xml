@@ -8,12 +8,18 @@
 
     <color name="text_white">#E0E0E0</color>
     <color name="text_gray">#A0A0A0</color>
-    <color name="accent_neon">#00FF99</color>
-    <color name="color_cpu">#BB86FC</color>
-    <color name="color_ram">#03DAC5</color>
-    <color name="color_gpu">#FF4081</color>
-    <color name="color_disk">#FF9800</color>
-    <color name="color_net">#2196F3</color>
-    <color name="color_cooling">#FFEB3B</color>
-    <color name="color_procs">#FFD600</color>
+
+    <!-- Основная палитра -->
+    <color name="purple">#FF00FF</color>
+    <color name="turquoise">#03DAC5</color>
+
+    <!-- Переназначение системных цветов -->
+    <color name="accent_neon">@color/turquoise</color>
+    <color name="color_cpu">@color/purple</color>
+    <color name="color_gpu">@color/purple</color>
+    <color name="color_ram">@color/turquoise</color>
+    <color name="color_disk">@color/turquoise</color>
+    <color name="color_net">@color/turquoise</color>
+    <color name="color_cooling">@color/purple</color>
+    <color name="color_procs">@color/purple</color>
 </resources>

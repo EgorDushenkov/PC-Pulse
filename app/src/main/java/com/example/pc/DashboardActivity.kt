@@ -1,5 +1,6 @@
 package com.example.pc
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -52,6 +53,15 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Установка темы
+        val prefs = getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        val theme = prefs.getString("APP_THEME", "PURPLE")
+        if (theme == "TURQUOISE") {
+            setTheme(R.style.AppTheme_Turquoise)
+        } else {
+            setTheme(R.style.AppTheme_Purple)
+        }
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_dashboard)
 
@@ -119,8 +129,8 @@ class DashboardActivity : AppCompatActivity() {
             gpuNameText.text = g.name.replace("NVIDIA GeForce ", "").replace("AMD Radeon ", "").trim()
             gpuDetailText.text = "${g.temp}°C | VRAM: ${g.mem_p}%"
         }
-        netDownText.text = "↓ ${s.network.down_kbps} KB/s"
-        netUpText.text = "↑ ${s.network.up_kbps} KB/s"
+        netDownText.text = "↓ ${s.network.down_kbps.toInt()} KB/s"
+        netUpText.text = "↑ ${s.network.up_kbps.toInt()} KB/s"
 
         updateWidgetContainer(controlsContainer, WidgetFactory.createControlsCard(this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand))
         updateWidgetContainer(mixerContainer, WidgetFactory.createAudioMixerCard(this) { name, vol -> sendMixerVolume(name, vol) })

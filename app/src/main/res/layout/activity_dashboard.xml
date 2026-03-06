@@ -66,8 +66,8 @@
                     android:id="@+id/cpuSpeedometer"
                     android:layout_width="80dp"
                     android:layout_height="80dp"
-                    app:speedometerColor="@color/color_cpu"
-                    app:textColor="@color/color_cpu"
+                    app:speedometerColor="?attr/colorPrimary"
+                    app:textColor="?attr/colorPrimary"
                     app:titleText="CPU"
                     app:titleTextColor="@color/text_gray" />
 
@@ -115,8 +115,8 @@
                     android:id="@+id/gpuSpeedometer"
                     android:layout_width="80dp"
                     android:layout_height="80dp"
-                    app:speedometerColor="@color/color_gpu"
-                    app:textColor="@color/color_gpu"
+                    app:speedometerColor="?attr/colorPrimary"
+                    app:textColor="?attr/colorPrimary"
                     app:titleText="GPU"
                     app:titleTextColor="@color/text_gray" />
 
@@ -164,8 +164,8 @@
                     android:id="@+id/ramSpeedometer"
                     android:layout_width="80dp"
                     android:layout_height="80dp"
-                    app:speedometerColor="@color/color_ram"
-                    app:textColor="@color/color_ram"
+                    app:speedometerColor="?attr/colorPrimary"
+                    app:textColor="?attr/colorPrimary"
                     app:titleText="RAM"
                     app:titleTextColor="@color/text_gray" />
 
@@ -210,7 +210,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="NETWORK"
-                    android:textColor="@color/color_net"
+                    android:textColor="?attr/colorPrimary"
                     android:textSize="14sp"
                     android:textStyle="bold" />
                 <LinearLayout

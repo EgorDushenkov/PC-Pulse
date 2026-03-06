@@ -69,6 +69,15 @@ class CustomDashboardActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Установка темы
+        val prefs = getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        val theme = prefs.getString("APP_THEME", "PURPLE")
+        if (theme == "TURQUOISE") {
+            setTheme(R.style.AppTheme_Turquoise)
+        } else {
+            setTheme(R.style.AppTheme_Purple)
+        }
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_custom_dashboard)
 
@@ -217,9 +226,11 @@ class CustomDashboardActivity : AppCompatActivity() {
     }
 
     private fun createResizeHandle(widgetView: View): View {
+        val themeColor = getThemeColor(androidx.appcompat.R.attr.colorPrimary)
         return ImageView(this).apply {
             setImageResource(android.R.drawable.ic_menu_crop)
-            setBackgroundColor(Color.parseColor("#80FF4081"))
+            setBackgroundColor(themeColor)
+            alpha = 0.5f
             visibility = if (isEditMode) View.VISIBLE else View.GONE
             elevation = 10 * resources.displayMetrics.density
             setOnTouchListener { _, event -> handleResize(widgetView, event); true }
@@ -385,8 +396,6 @@ class CustomDashboardActivity : AppCompatActivity() {
         return DashboardLayout("My Dashboard", emptyList())
     }
 
-    // --- Commands logic ---
-
     private fun showScreenshotDialog() {
         Toast.makeText(this, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
         currentApi?.getScreenshot()?.enqueue(object : Callback<ResponseBody> {
@@ -394,35 +403,20 @@ class CustomDashboardActivity : AppCompatActivity() {
                 if (response.isSuccessful && response.body() != null) {
                     val bytes = response.body()!!.bytes()
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-
                     val view = layoutInflater.inflate(R.layout.dialog_screenshot, null)
-                    val imgView = view.findViewById<ImageView>(R.id.screenshotImage)
-                    imgView.setImageBitmap(bitmap)
-
-                    AlertDialog.Builder(this@CustomDashboardActivity)
-                        .setTitle("PC Screenshot")
-                        .setView(view)
-                        .setPositiveButton("Close") { d, _ -> d.dismiss() }
-                        .show()
-                } else {
-                    Toast.makeText(applicationContext, "Failed to get image", Toast.LENGTH_SHORT).show()
+                    view.findViewById<ImageView>(R.id.screenshotImage).setImageBitmap(bitmap)
+                    AlertDialog.Builder(this@CustomDashboardActivity).setTitle("PC Screenshot").setView(view).setPositiveButton("Close", null).show()
                 }
             }
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                Toast.makeText(applicationContext, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {}
         })
     }
 
     private fun sendShutdownCommand() {
         showPowerActionDialog("выключить", "Выключение") {
             currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {
-                    Toast.makeText(this@CustomDashboardActivity, "PC is shutting down...", Toast.LENGTH_SHORT).show()
-                }
-                override fun onFailure(call: Call<String>, t: Throwable) {
-                    Toast.makeText(this@CustomDashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
+                override fun onResponse(call: Call<String>, response: Response<String>) {}
+                override fun onFailure(call: Call<String>, t: Throwable) {}
             })
         }
     }
@@ -430,35 +424,22 @@ class CustomDashboardActivity : AppCompatActivity() {
     private fun sendSleepCommand() {
         showPowerActionDialog("отправить в спящий режим", "Сон") {
             currentApi?.sleepPC()?.enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {
-                    Toast.makeText(this@CustomDashboardActivity, "Putting PC to sleep...", Toast.LENGTH_SHORT).show()
-                }
-                override fun onFailure(call: Call<String>, t: Throwable) {
-                    Toast.makeText(this@CustomDashboardActivity, "Error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
+                override fun onResponse(call: Call<String>, response: Response<String>) {}
+                override fun onFailure(call: Call<String>, t: Throwable) {}
             })
         }
     }
 
     private fun showPowerActionDialog(actionName: String, title: String, onConfirm: () -> Unit) {
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setMessage("Вы уверены, что хотите $actionName ПК?")
-            .setPositiveButton("Да") { _, _ -> onConfirm() }
-            .setNegativeButton("Нет", null)
-            .show()
+        AlertDialog.Builder(this).setTitle(title).setMessage("Вы уверены, что хотите $actionName ПК?").setPositiveButton("Да") { _, _ -> onConfirm() }.setNegativeButton("Нет", null).show()
     }
 
     private fun killProcess(pid: Int) {
         currentApi?.killProcess(pid)?.enqueue(object : Callback<String> {
             override fun onResponse(call: Call<String>, response: Response<String>) {
-                val message = if (response.isSuccessful) response.body() ?: "Процесс завершен" else "Ошибка: ${response.code()}"
-                Toast.makeText(this@CustomDashboardActivity, message, Toast.LENGTH_SHORT).show()
-                handler.postDelayed({ fetchStats() }, 250)
+                fetchStats()
             }
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                Toast.makeText(this@CustomDashboardActivity, "Сетевая ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
+            override fun onFailure(call: Call<String>, t: Throwable) {}
         })
     }
 
@@ -470,7 +451,12 @@ class CustomDashboardActivity : AppCompatActivity() {
     }
 
     private inner class GridDrawable : android.graphics.drawable.Drawable() {
-        private val paint = Paint().apply { color = Color.parseColor("#40FFFFFF"); strokeWidth = 2f; style = Paint.Style.STROKE }
+        private val paint = Paint().apply {
+            color = getThemeColor(androidx.appcompat.R.attr.colorPrimary)
+            alpha = 40
+            strokeWidth = 2f
+            style = Paint.Style.STROKE
+        }
         override fun draw(canvas: Canvas) {
             if (!isEditMode) return
             val cellWidth = bounds.width() / gridColumns.toFloat()

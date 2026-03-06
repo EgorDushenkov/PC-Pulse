@@ -38,6 +38,24 @@
         android:layout_height="wrap_content"
         android:text="Бирюзовая тема"
         android:backgroundTint="@color/turquoise"
+        android:textColor="@color/white"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btn_theme_orange"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Оранжевая тема"
+        android:backgroundTint="@color/neon_orange"
+        android:textColor="@color/white"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btn_theme_green"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Зеленая тема"
+        android:backgroundTint="@color/matrix_green"
         android:textColor="@color/white" />
 
 </LinearLayout>

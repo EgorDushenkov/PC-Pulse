@@ -72,10 +72,11 @@ class CustomDashboardActivity : AppCompatActivity() {
         // Установка темы
         val prefs = getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
         val theme = prefs.getString("APP_THEME", "PURPLE")
-        if (theme == "TURQUOISE") {
-            setTheme(R.style.AppTheme_Turquoise)
-        } else {
-            setTheme(R.style.AppTheme_Purple)
+        when (theme) {
+            "TURQUOISE" -> setTheme(R.style.AppTheme_Turquoise)
+            "ORANGE" -> setTheme(R.style.AppTheme_Orange)
+            "GREEN" -> setTheme(R.style.AppTheme_Green)
+            else -> setTheme(R.style.AppTheme_Purple)
         }
 
         super.onCreate(savedInstanceState)

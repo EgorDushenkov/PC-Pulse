@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -39,9 +40,9 @@ abstract class BaseWidgetView @JvmOverloads constructor(
 }
 
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
-    private val btnScrenshot: Button
-    private val btnSleep: Button
-    private val btnShutdown: Button
+    private val btnScrenshot: ImageButton
+    private val btnSleep: ImageButton
+    private val btnShutdown: ImageButton
     init {
         val v = LayoutInflater.from(context).inflate(R.layout.widget_controls, this, true)
         btnScrenshot = v.findViewById(R.id.screenshot_button)

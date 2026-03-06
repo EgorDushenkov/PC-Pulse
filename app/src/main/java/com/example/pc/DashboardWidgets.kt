@@ -27,90 +27,95 @@ abstract class BaseWidgetView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 ) : CardView(context, attrs, defStyleAttr), UpdatableWidget {
     init {
-        radius = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 16f, resources.displayMetrics)
+        radius = 16f.dpToPx(context)
         setCardBackgroundColor(ContextCompat.getColor(context, R.color.card_bg))
-        elevation = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4f, resources.displayMetrics)
-        val padding = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics).toInt()
-        setContentPadding(padding, padding, padding, padding)
+        elevation = 4f.dpToPx(context)
+        val p = 8f.dpToPx(context).toInt()
+        setContentPadding(p, p, p, p)
     }
+
+    protected fun Float.dpToPx(context: Context): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, context.resources.displayMetrics)
 }
 
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
-    private val screenshotButton: Button
-    private val sleepButton: Button
-    private val shutdownButton: Button
+    private val btnScrenshot: Button
+    private val btnSleep: Button
+    private val btnShutdown: Button
     init {
-        val view = LayoutInflater.from(context).inflate(R.layout.widget_controls, this, true)
-        screenshotButton = view.findViewById(R.id.screenshot_button)
-        sleepButton = view.findViewById(R.id.sleep_button)
-        shutdownButton = view.findViewById(R.id.shutdown_button)
+        val v = LayoutInflater.from(context).inflate(R.layout.widget_controls, this, true)
+        btnScrenshot = v.findViewById(R.id.screenshot_button)
+        btnSleep = v.findViewById(R.id.sleep_button)
+        btnShutdown = v.findViewById(R.id.shutdown_button)
     }
     fun setCallbacks(onScreenshot: () -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
-        screenshotButton.setOnClickListener { onScreenshot() }
-        sleepButton.setOnClickListener { onSleep() }
-        shutdownButton.setOnClickListener { onShutdown() }
+        btnScrenshot.setOnClickListener { onScreenshot() }
+        btnSleep.setOnClickListener { onSleep() }
+        btnShutdown.setOnClickListener { onShutdown() }
     }
     override fun updateData(stats: PCStats) {}
 }
 
 class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
-    private val title: TextView
-    private val mixerListContainer: LinearLayout
+    private val container: LinearLayout
     private var onVolumeChange: ((String, Int) -> Unit)? = null
     private val activeSliders = mutableSetOf<String>()
+
     init {
-        val rootLayout = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        title = TextView(context).apply {
+        val root = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(TextView(context).apply {
             text = "AUDIO MIXER"
             setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
             textSize = 12f
             paint.isFakeBoldText = true
-            setPadding(0, 0, 0, 8)
-        }
-        rootLayout.addView(title)
-        val scrollView = ScrollView(context).apply {
+            setPadding(0, 0, 0, 8f.dpToPx(context).toInt())
+        })
+        val scroll = ScrollView(context).apply {
             isVerticalScrollBarEnabled = false
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
+            layoutParams = LinearLayout.LayoutParams(-1, -1)
         }
-        mixerListContainer = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        scrollView.addView(mixerListContainer)
-        rootLayout.addView(scrollView)
-        addView(rootLayout)
+        container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(container)
+        root.addView(scroll)
+        addView(root)
     }
+
     fun setCallbacks(onVolumeChange: (String, Int) -> Unit) { this.onVolumeChange = onVolumeChange }
+
     @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
-        val currentApps = stats.audio_sessions.map { it.name }.toSet()
-        val existingApps = (0 until mixerListContainer.childCount).map { mixerListContainer.getChildAt(it).tag as String }.toSet()
-        if (currentApps != existingApps) {
-            mixerListContainer.removeAllViews()
+        val current = stats.audio_sessions.map { it.name }.toSet()
+        val existing = (0 until container.childCount).map { container.getChildAt(it).tag as String }.toSet()
+
+        if (current != existing) {
+            container.removeAllViews()
             val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
-            for (session in stats.audio_sessions) {
-                val view = LayoutInflater.from(context).inflate(R.layout.item_mixer_app, mixerListContainer, false)
+            stats.audio_sessions.forEach { session ->
+                val view = LayoutInflater.from(context).inflate(R.layout.item_mixer_app, container, false)
                 view.tag = session.name
                 val slider = view.findViewById<SeekBar>(R.id.appVolumeSlider)
-                val percentText = view.findViewById<TextView>(R.id.appVolumePercentText)
+                val text = view.findViewById<TextView>(R.id.appVolumePercentText)
                 view.findViewById<TextView>(R.id.appNameText).text = session.name
                 slider.progress = session.volume
-                percentText.text = "${session.volume}%"
+                text.text = "${session.volume}%"
                 slider.progressTintList = android.content.res.ColorStateList.valueOf(themeColor)
                 slider.thumbTintList = android.content.res.ColorStateList.valueOf(themeColor)
                 slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) { if (f) percentText.text = "$p%" }
+                    override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) { if (f) text.text = "$p%" }
                     override fun onStartTrackingTouch(s: SeekBar?) { activeSliders.add(session.name) }
                     override fun onStopTrackingTouch(s: SeekBar?) {
                         activeSliders.remove(session.name)
                         onVolumeChange?.invoke(session.name, slider.progress)
                     }
                 })
-                mixerListContainer.addView(view)
+                container.addView(view)
             }
         } else {
-            for (i in 0 until mixerListContainer.childCount) {
-                val view = mixerListContainer.getChildAt(i)
-                val appName = view.tag as String
-                if (appName !in activeSliders) {
-                    stats.audio_sessions.find { it.name == appName }?.let {
+            for (i in 0 until container.childCount) {
+                val view = container.getChildAt(i)
+                val name = view.tag as String
+                if (name !in activeSliders) {
+                    stats.audio_sessions.find { it.name == name }?.let {
                         view.findViewById<SeekBar>(R.id.appVolumeSlider).progress = it.volume
                         view.findViewById<TextView>(R.id.appVolumePercentText).text = "${it.volume}%"
                     }
@@ -121,76 +126,68 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 class StorageWidgetView(context: Context) : BaseWidgetView(context) {
-    private val disksContainer: LinearLayout
+    private val container: LinearLayout
     init {
         val view = LayoutInflater.from(context).inflate(R.layout.widget_storage, this, true)
-        disksContainer = view.findViewById(R.id.disks_container)
+        container = view.findViewById(R.id.disks_container)
     }
     @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
-        disksContainer.removeAllViews()
+        container.removeAllViews()
         val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
-        for (disk in stats.disks) {
-            val diskView = LayoutInflater.from(context).inflate(R.layout.item_widget_disk, disksContainer, false)
-            diskView.findViewById<TextView>(R.id.disk_name).text = disk.dev.replace("\\", "")
-            diskView.findViewById<TextView>(R.id.disk_value).text = "${disk.used.toInt()} / ${disk.total.toInt()} GB"
-            val pb = diskView.findViewById<ProgressBar>(R.id.disk_progress)
+        stats.disks.forEach { disk ->
+            val v = LayoutInflater.from(context).inflate(R.layout.item_widget_disk, container, false)
+            v.findViewById<TextView>(R.id.disk_name).text = disk.dev.replace("\\", "")
+            v.findViewById<TextView>(R.id.disk_value).text = "${disk.used.toInt()} / ${disk.total.toInt()} GB"
+            val pb = v.findViewById<ProgressBar>(R.id.disk_progress)
             pb.progress = disk.percent.toInt()
             pb.progressTintList = android.content.res.ColorStateList.valueOf(themeColor)
-            disksContainer.addView(diskView)
+            container.addView(v)
         }
     }
 }
 
 class CoolingWidgetView(context: Context) : BaseWidgetView(context) {
-    private val title: TextView
     private val fansText: TextView
     init {
-        val container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        title = TextView(context).apply {
+        val c = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        c.addView(TextView(context).apply {
             text = "COOLING"
             setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
-            textSize = 12f
-            paint.isFakeBoldText = true
-        }
+            textSize = 12f; paint.isFakeBoldText = true
+        })
         fansText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 14f }
-        container.addView(title)
-        container.addView(fansText)
-        addView(container)
+        c.addView(fansText)
+        addView(c)
     }
     override fun updateData(stats: PCStats) {
-        val fanInfo = stats.fans.joinToString("\n") { "${it.name}: ${it.rpm} RPM" }
-        fansText.text = if (fanInfo.isEmpty()) "No fans detected" else fanInfo
+        val info = stats.fans.joinToString("\n") { "${it.name}: ${it.rpm} RPM" }
+        fansText.text = info.ifEmpty { "No fans detected" }
     }
 }
 
 class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
-    private val title: TextView
-    private val procsListContainer: LinearLayout
+    private val container: LinearLayout
     private var onKill: ((Int) -> Unit)? = null
     init {
-        val container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        title = TextView(context).apply {
+        val c = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        c.addView(TextView(context).apply {
             text = "PROCESSES"
             setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
-            textSize = 12f
-            paint.isFakeBoldText = true
-        }
-        procsListContainer = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        container.addView(title)
-        container.addView(procsListContainer)
-        addView(container)
+            textSize = 12f; paint.isFakeBoldText = true
+        })
+        container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        c.addView(container); addView(c)
     }
     fun setCallbacks(onKill: (Int) -> Unit) { this.onKill = onKill }
     override fun updateData(stats: PCStats) {
-        procsListContainer.removeAllViews()
+        container.removeAllViews()
         stats.procs.take(5).forEach { proc ->
-            val tv = TextView(context).apply {
+            container.addView(TextView(context).apply {
                 text = "${proc.name} (${proc.cpu}%)"
                 setTextColor(Color.WHITE); textSize = 11f; setPadding(0, 4, 0, 4)
                 setOnClickListener { onKill?.invoke(proc.pid) }
-            }
-            procsListContainer.addView(tv)
+            })
         }
     }
 }
@@ -199,14 +196,12 @@ abstract class SpeedometerWidgetView(context: Context) : BaseWidgetView(context)
     protected val speedometer: SpeedometerView
     protected val detailText: TextView
     init {
-        val layout = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        val l = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         speedometer = SpeedometerView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 120f, resources.displayMetrics).toInt(), 0, 1f)
+            layoutParams = LinearLayout.LayoutParams(120f.dpToPx(context).toInt(), 0, 1f)
         }
-        detailText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 12f; gravity = Gravity.CENTER; setPadding(0, 8, 0, 0) }
-        layout.addView(speedometer)
-        layout.addView(detailText)
-        addView(layout)
+        detailText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 12f; gravity = Gravity.CENTER; setPadding(0, 8f.dpToPx(context).toInt(), 0, 0) }
+        l.addView(speedometer); l.addView(detailText); addView(l)
     }
 }
 
@@ -237,19 +232,33 @@ class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
     private val downText: TextView
     private val upText: TextView
     init {
-        val layout = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-        layout.addView(TextView(context).apply {
-            text = "NETWORK"
-            setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
+        val l = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        l.addView(TextView(context).apply {
+            text = "NETWORK"; setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
             textSize = 12f; paint.isFakeBoldText = true; gravity = Gravity.CENTER
         })
-        downText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setPadding(0, 16, 0, 8) }
+        downText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setPadding(0, 16f.dpToPx(context).toInt(), 0, 8f.dpToPx(context).toInt()) }
         upText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER }
-        layout.addView(downText); layout.addView(upText)
-        addView(layout)
+        l.addView(downText); l.addView(upText); addView(l)
     }
     override fun updateData(stats: PCStats) {
         downText.text = "↓ ${stats.network.down_kbps.toInt()} KB/s"
         upText.text = "↑ ${stats.network.up_kbps.toInt()} KB/s"
+    }
+}
+
+object WidgetFactory {
+    fun create(type: WidgetType, context: Context, onScreenshot: () -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}): View {
+        return when (type) {
+            WidgetType.CONTROLS -> ControlsWidgetView(context).apply { setCallbacks(onScreenshot, onSleep, onShutdown) }
+            WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply { setCallbacks(onVolumeChange) }
+            WidgetType.STORAGE -> StorageWidgetView(context)
+            WidgetType.COOLING -> CoolingWidgetView(context)
+            WidgetType.TOP_PROCESSES -> TopProcessesWidgetView(context).apply { setCallbacks(onKill) }
+            WidgetType.CPU -> CpuWidgetView(context)
+            WidgetType.RAM -> RamWidgetView(context)
+            WidgetType.GPU -> GpuWidgetView(context)
+            WidgetType.NETWORK -> NetworkWidgetView(context)
+        }
     }
 }

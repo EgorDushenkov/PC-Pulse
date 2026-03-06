@@ -19,8 +19,17 @@ enum class WidgetType {
     @SerializedName("top_processes")
     TOP_PROCESSES,
 
-    // Сюда можно будет добавлять новые типы в будущем
-    // например, CPU, RAM, GPU, NETWORK, QUICK_LAUNCH, etc.
+    @SerializedName("cpu")
+    CPU,
+
+    @SerializedName("ram")
+    RAM,
+
+    @SerializedName("gpu")
+    GPU,
+
+    @SerializedName("network")
+    NETWORK,
 }
 
 // Конфигурация отдельного виджета на дашборде

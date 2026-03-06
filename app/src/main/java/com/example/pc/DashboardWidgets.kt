@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.LinearLayout
@@ -164,12 +165,11 @@ class StorageWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 class CoolingWidgetView(context: Context) : BaseWidgetView(context) {
-    private val container: LinearLayout
     private val title: TextView
     private val fansText: TextView
 
     init {
-        container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         title = TextView(context).apply {
             text = "COOLING"
             setTextColor(ContextCompat.getColor(context, R.color.color_cooling))
@@ -193,13 +193,12 @@ class CoolingWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
-    private val container: LinearLayout
     private val title: TextView
     private val procsListContainer: LinearLayout
     private var onKill: ((Int) -> Unit)? = null
 
     init {
-        container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        val container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         title = TextView(context).apply {
             text = "PROCESSES"
             setTextColor(ContextCompat.getColor(context, R.color.color_procs))
@@ -229,5 +228,104 @@ class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
             }
             procsListContainer.addView(tv)
         }
+    }
+}
+
+// --- Новые виджеты мониторинга ---
+
+abstract class SpeedometerWidgetView(context: Context) : BaseWidgetView(context) {
+    protected val speedometer: SpeedometerView
+    protected val detailText: TextView
+
+    init {
+        val layout = LinearLayout(context).apply { 
+            orientation = LinearLayout.VERTICAL 
+            gravity = Gravity.CENTER
+        }
+        
+        speedometer = SpeedometerView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 120f, resources.displayMetrics).toInt(),
+                0,
+                1f
+            )
+        }
+        
+        detailText = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setPadding(0, 8, 0, 0)
+        }
+
+        layout.addView(speedometer)
+        layout.addView(detailText)
+        addView(layout)
+    }
+}
+
+class CpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
+    @SuppressLint("SetTextI18n")
+    override fun updateData(stats: PCStats) {
+        speedometer.setValue(stats.cpu.usage.toFloat())
+        detailText.text = "${stats.cpu.freq.toInt()} MHz | ${stats.cpu.temp}°C"
+    }
+}
+
+class RamWidgetView(context: Context) : SpeedometerWidgetView(context) {
+    @SuppressLint("SetTextI18n")
+    override fun updateData(stats: PCStats) {
+        speedometer.setValue(stats.ram.usage.toFloat())
+        detailText.text = "${stats.ram.used} / ${stats.ram.total} GB"
+    }
+}
+
+class GpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
+    @SuppressLint("SetTextI18n")
+    override fun updateData(stats: PCStats) {
+        stats.gpu.getOrNull(0)?.let { g ->
+            speedometer.setValue(g.load.toFloat())
+            detailText.text = "${g.temp}°C | VRAM: ${g.mem_p}%"
+        }
+    }
+}
+
+class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
+    private val downText: TextView
+    private val upText: TextView
+
+    init {
+        val layout = LinearLayout(context).apply { 
+            orientation = LinearLayout.VERTICAL 
+            gravity = Gravity.CENTER
+        }
+        val title = TextView(context).apply {
+            text = "NETWORK"
+            setTextColor(ContextCompat.getColor(context, R.color.color_net))
+            textSize = 12f
+            paint.isFakeBoldText = true
+            gravity = Gravity.CENTER
+        }
+        downText = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setPadding(0, 16, 0, 8)
+        }
+        upText = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            gravity = Gravity.CENTER
+        }
+        layout.addView(title)
+        layout.addView(downText)
+        layout.addView(upText)
+        addView(layout)
+    }
+
+    @SuppressLint("SetTextI18n")
+    override fun updateData(stats: PCStats) {
+        downText.text = "↓ ${stats.network.down_kbps.toInt()} KB/s"
+        upText.text = "↑ ${stats.network.up_kbps.toInt()} KB/s"
     }
 }

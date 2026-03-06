@@ -1,7 +1,6 @@
 package com.example.pc
 
 import android.content.Context
-import android.view.LayoutInflater
 
 object WidgetFactory {
 
@@ -29,5 +28,21 @@ object WidgetFactory {
         return TopProcessesWidgetView(context).apply {
             setCallbacks(onKill)
         }
+    }
+
+    fun createCpuCard(context: Context): CpuWidgetView {
+        return CpuWidgetView(context)
+    }
+
+    fun createRamCard(context: Context): RamWidgetView {
+        return RamWidgetView(context)
+    }
+
+    fun createGpuCard(context: Context): GpuWidgetView {
+        return GpuWidgetView(context)
+    }
+
+    fun createNetworkCard(context: Context): NetworkWidgetView {
+        return NetworkWidgetView(context)
     }
 }

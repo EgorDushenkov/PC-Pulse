@@ -374,6 +374,10 @@ class CustomDashboardActivity : AppCompatActivity() {
             WidgetType.STORAGE -> WidgetFactory.createDisksCard(this)
             WidgetType.COOLING -> WidgetFactory.createFansCard(this)
             WidgetType.TOP_PROCESSES -> WidgetFactory.createProcsCard(this) { pid -> killProcess(pid) }
+            WidgetType.CPU -> WidgetFactory.createCpuCard(this)
+            WidgetType.RAM -> WidgetFactory.createRamCard(this)
+            WidgetType.GPU -> WidgetFactory.createGpuCard(this)
+            WidgetType.NETWORK -> WidgetFactory.createNetworkCard(this)
         }
     }
 

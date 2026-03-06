@@ -8,16 +8,21 @@
     android:background="@color/dark_bg"
     tools:context=".CustomDashboardActivity">
 
-    <!-- Панель управления, которая всегда будет наверху -->
+    <!-- Холст теперь занимает весь экран -->
+    <FrameLayout
+        android:id="@+id/dashboard_canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Панель управления теперь наложена поверх холста и имеет прозрачный фон -->
     <LinearLayout
         android:id="@+id/control_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="end"
         android:orientation="horizontal"
-        android:padding="16dp"
+        android:padding="8dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <Button
@@ -26,7 +31,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
-            android:text="Добавить виджет"
+            android:text="+"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:background="@color/card_bg"
             android:textColor="@android:color/white"
             android:visibility="gone" />
 
@@ -35,19 +43,11 @@
             style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Редактировать"
+            android:text="✎"
+            android:textSize="20sp"
+            android:background="@color/card_bg"
             android:textColor="@android:color/white" />
 
     </LinearLayout>
-
-    <!-- Новый "холст" для виджетов, который находится ПОД панелью управления -->
-    <FrameLayout
-        android:id="@+id/dashboard_canvas"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/control_panel" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

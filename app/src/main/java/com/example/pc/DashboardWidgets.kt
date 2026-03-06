@@ -183,11 +183,24 @@ class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
     override fun updateData(stats: PCStats) {
         container.removeAllViews()
         stats.procs.take(5).forEach { proc ->
-            container.addView(TextView(context).apply {
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, 4, 0, 4)
+            }
+            row.addView(TextView(context).apply {
                 text = "${proc.name} (${proc.cpu}%)"
-                setTextColor(Color.WHITE); textSize = 11f; setPadding(0, 4, 0, 4)
+                setTextColor(Color.WHITE); textSize = 11f
+                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            })
+            row.addView(TextView(context).apply {
+                text = "✕"
+                setTextColor(Color.RED)
+                textSize = 16f
+                setPadding(8f.dpToPx(context).toInt(), 0, 4f.dpToPx(context).toInt(), 0)
                 setOnClickListener { onKill?.invoke(proc.pid) }
             })
+            container.addView(row)
         }
     }
 }

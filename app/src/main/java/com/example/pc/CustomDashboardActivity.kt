@@ -129,7 +129,7 @@ class CustomDashboardActivity : BaseActivity() {
     private fun toggleEditMode() {
         isEditMode = !isEditMode
         if (!isEditMode) saveDashboardLayout()
-        editDashboardButton.text = if (isEditMode) "Готово" else "Редактировать"
+        editDashboardButton.text = if (isEditMode) "✓" else "✎"
         addWidgetButton.visibility = if (isEditMode) View.VISIBLE else View.GONE
         dashboardCanvas.invalidate()
         resizeHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }

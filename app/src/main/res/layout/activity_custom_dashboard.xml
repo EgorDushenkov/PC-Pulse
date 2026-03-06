@@ -8,45 +8,60 @@
     android:background="@color/dark_bg"
     tools:context=".CustomDashboardActivity">
 
-    <!-- Холст теперь занимает весь экран -->
+    <!-- Холст на весь экран -->
     <FrameLayout
         android:id="@+id/dashboard_canvas"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Панель управления теперь наложена поверх холста и имеет прозрачный фон -->
+    <!-- Панель управления: сдвинута от краев и поднята по Z -->
     <LinearLayout
         android:id="@+id/control_panel"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="end"
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:elevation="15dp"
+        android:padding="4dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="24dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <Button
-            android:id="@+id/add_widget_button"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="8dp"
-            android:text="+"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:background="@color/card_bg"
-            android:textColor="@android:color/white"
-            android:visibility="gone" />
+        <androidx.cardview.widget.CardView
+            android:id="@+id/add_widget_card"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="12dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="28dp"
+            app:cardElevation="8dp">
+            <Button
+                android:id="@+id/add_widget_button"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="+"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/white" />
+        </androidx.cardview.widget.CardView>
 
-        <Button
-            android:id="@+id/edit_dashboard_button"
-            style="?android:attr/buttonBarButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="✎"
-            android:textSize="20sp"
-            android:background="@color/card_bg"
-            android:textColor="@android:color/white" />
+        <androidx.cardview.widget.CardView
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="28dp"
+            app:cardElevation="8dp">
+            <Button
+                android:id="@+id/edit_dashboard_button"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:text="✎"
+                android:textSize="24sp"
+                android:textColor="@android:color/white" />
+        </androidx.cardview.widget.CardView>
 
     </LinearLayout>
 

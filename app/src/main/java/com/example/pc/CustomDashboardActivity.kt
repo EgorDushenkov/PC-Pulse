@@ -6,11 +6,14 @@ import android.content.pm.ActivityInfo
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -18,8 +21,6 @@ import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.cardview.widget.CardView
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.gson.Gson
 import retrofit2.Call
 import retrofit2.Callback
@@ -30,8 +31,10 @@ import kotlin.math.roundToInt
 class CustomDashboardActivity : BaseActivity() {
 
     private lateinit var dashboardCanvas: FrameLayout
+    private lateinit var controlPanel: LinearLayout
     private lateinit var editDashboardButton: Button
     private lateinit var addWidgetButton: Button
+    private lateinit var addWidgetCard: CardView
 
     private var isEditMode = false
     private lateinit var testLayout: DashboardLayout
@@ -66,15 +69,14 @@ class CustomDashboardActivity : BaseActivity() {
         setContentView(R.layout.activity_custom_dashboard)
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        
+        hideSystemUI()
+
         dashboardCanvas = findViewById(R.id.dashboard_canvas)
+        controlPanel = findViewById(R.id.control_panel)
         editDashboardButton = findViewById(R.id.edit_dashboard_button)
         addWidgetButton = findViewById(R.id.add_widget_button)
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
+        addWidgetCard = findViewById(R.id.add_widget_card)
 
         editDashboardButton.setOnClickListener { toggleEditMode() }
         addWidgetButton.setOnClickListener { showAddWidgetDialog() }
@@ -88,6 +90,24 @@ class CustomDashboardActivity : BaseActivity() {
         }
 
         if (currentApi != null) handler.post(runnable)
+    }
+
+    private fun hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        }
     }
 
     override fun onStop() {
@@ -130,7 +150,7 @@ class CustomDashboardActivity : BaseActivity() {
         isEditMode = !isEditMode
         if (!isEditMode) saveDashboardLayout()
         editDashboardButton.text = if (isEditMode) "✓" else "✎"
-        addWidgetButton.visibility = if (isEditMode) View.VISIBLE else View.GONE
+        addWidgetCard.visibility = if (isEditMode) View.VISIBLE else View.GONE
         dashboardCanvas.invalidate()
         resizeHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }
         deleteHandles.values.forEach { it.visibility = if (isEditMode) View.VISIBLE else View.GONE }

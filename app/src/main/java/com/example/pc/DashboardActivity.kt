@@ -36,7 +36,6 @@ class DashboardActivity : BaseActivity() {
     private val runnable = object : Runnable {
         override fun run() {
             fetchStats()
-            handler.postDelayed(this, 1000)
         }
     }
 
@@ -45,7 +44,6 @@ class DashboardActivity : BaseActivity() {
         setContentView(R.layout.activity_dashboard)
 
         hideSystemUI()
-
         initViews()
 
         val ip = intent.getStringExtra("DEVICE_IP") ?: ""
@@ -108,8 +106,12 @@ class DashboardActivity : BaseActivity() {
         currentApi?.getStats()?.enqueue(object : Callback<PCStats> {
             override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
                 if (response.isSuccessful) response.body()?.let { updateUI(it) }
+                handler.postDelayed(runnable, 1000) // Рекурсивный вызов через секунду ПОСЛЕ ответа
             }
-            override fun onFailure(call: Call<PCStats>, t: Throwable) { uptimeText.text = "OFFLINE" }
+            override fun onFailure(call: Call<PCStats>, t: Throwable) {
+                uptimeText.text = "OFFLINE"
+                handler.postDelayed(runnable, 1000)
+            }
         })
     }
 

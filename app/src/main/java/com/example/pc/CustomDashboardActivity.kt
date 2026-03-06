@@ -222,7 +222,9 @@ class CustomDashboardActivity : BaseActivity() {
         val dh = deleteHandles[view]!!
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                dX = view.x - event.rawX; dY = view.y - event.rawY
+                // Вычисляем смещение относительно реальных координат X/Y (с учетом отступа)
+                dX = view.x - event.rawX
+                dY = view.y - event.rawY
                 view.bringToFront(); rh.bringToFront(); dh.bringToFront()
             }
             MotionEvent.ACTION_MOVE -> {
@@ -233,6 +235,7 @@ class CustomDashboardActivity : BaseActivity() {
             }
             MotionEvent.ACTION_UP -> {
                 val cfg = widgetViews[view] ?: return
+                // Привязываем к сетке по ЦЕНТРУ ячейки
                 val gx = (view.x / cellWidth).roundToInt().coerceIn(0, gridColumns - cfg.width)
                 val gy = (view.y / cellHeight).roundToInt().coerceIn(0, gridRows - cfg.height)
                 updateWidgetConfig(view, cfg.copy(x = gx, y = gy))
@@ -251,16 +254,17 @@ class CustomDashboardActivity : BaseActivity() {
                 view.bringToFront(); rh.bringToFront(); dh.bringToFront()
             }
             MotionEvent.ACTION_MOVE -> {
-                lp.width = (startWidth + (event.rawX - dX)).toInt().coerceAtLeast(cellWidth)
-                lp.height = (startHeight + (event.rawY - dY)).toInt().coerceAtLeast(cellHeight)
+                lp.width = (startWidth + (event.rawX - dX)).toInt().coerceAtLeast(cellWidth / 2)
+                lp.height = (startHeight + (event.rawY - dY)).toInt().coerceAtLeast(cellHeight / 2)
                 view.layoutParams = lp
                 rh.x = view.x + lp.width - rh.width; rh.y = view.y + lp.height - rh.height
                 dh.x = view.x; dh.y = view.y
             }
             MotionEvent.ACTION_UP -> {
                 val cfg = widgetViews[view] ?: return
-                val nw = (lp.width / cellWidth.toFloat()).roundToInt().coerceIn(1, gridColumns - cfg.x)
-                val nh = (lp.height / cellHeight.toFloat()).roundToInt().coerceIn(1, gridRows - cfg.y)
+                // Вычисляем количество ячеек, округляя физический размер
+                val nw = ((lp.width + 16) / cellWidth.toFloat()).roundToInt().coerceIn(1, gridColumns - cfg.x)
+                val nh = ((lp.height + 16) / cellHeight.toFloat()).roundToInt().coerceIn(1, gridRows - cfg.y)
                 updateWidgetConfig(view, cfg.copy(width = nw, height = nh))
             }
         }
@@ -278,19 +282,31 @@ class CustomDashboardActivity : BaseActivity() {
     }
 
     private fun applyWidgetLayout(view: View, config: WidgetConfig, anim: Boolean) {
-        val tw = config.width * cellWidth; val th = config.height * cellHeight
-        val tx = (config.x * cellWidth).toFloat(); val ty = (config.y * cellHeight).toFloat()
-        view.layoutParams.width = tw; view.layoutParams.height = th
-        val h = 60
-        val rh = resizeHandles[view]; val dh = deleteHandles[view]
-        rh?.layoutParams?.width = h; rh?.layoutParams?.height = h
-        dh?.layoutParams?.width = h; dh?.layoutParams?.height = h
+        val gap = (4 * resources.displayMetrics.density).toInt() // Отступ 4dp со всех сторон
+        
+        val targetWidth = config.width * cellWidth - (gap * 2)
+        val targetHeight = config.height * cellHeight - (gap * 2)
+        val targetX = (config.x * cellWidth).toFloat() + gap
+        val targetY = (config.y * cellHeight).toFloat() + gap
+
+        view.layoutParams.width = targetWidth
+        view.layoutParams.height = targetHeight
+        
+        val hSize = 60 // Размер кнопок управления
+        val rh = resizeHandles[view]
+        val dh = deleteHandles[view]
+        
+        rh?.layoutParams?.width = hSize; rh?.layoutParams?.height = hSize
+        dh?.layoutParams?.width = hSize; dh?.layoutParams?.height = hSize
+
         if (anim) {
-            view.animate().x(tx).y(ty).setDuration(200).start()
-            rh?.animate()?.x(tx + tw - h)?.y(ty + th - h)?.setDuration(200)?.start()
-            dh?.animate()?.x(tx)?.y(ty)?.setDuration(200)?.start()
+            view.animate().x(targetX).y(targetY).setDuration(200).start()
+            rh?.animate()?.x(targetX + targetWidth - hSize)?.y(targetY + targetHeight - hSize)?.setDuration(200)?.start()
+            dh?.animate()?.x(targetX)?.y(targetY)?.setDuration(200)?.start()
         } else {
-            view.x = tx; view.y = ty; rh?.x = tx + tw - h; rh?.y = ty + th - h; dh?.x = tx; dh?.y = ty
+            view.x = targetX; view.y = targetY
+            rh?.x = targetX + targetWidth - hSize; rh?.y = targetY + targetHeight - hSize
+            dh?.x = targetX; dh?.y = targetY
         }
         view.requestLayout(); rh?.requestLayout(); dh?.requestLayout()
     }

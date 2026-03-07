@@ -10,6 +10,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -78,6 +79,105 @@ class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
         btnShutdown.setOnClickListener { onShutdown() }
     }
     override fun updateData(stats: PCStats) {}
+}
+
+class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
+    private val titleText: TextView
+    private val artistText: TextView
+    private val btnPrev: ImageButton
+    private val btnPlayPause: ImageButton
+    private val btnNext: ImageButton
+    private var onCommand: ((String) -> Unit)? = null
+
+    init {
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LayoutParams(-1, -1)
+        }
+
+        titleText = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            paint.isFakeBoldText = true
+            gravity = Gravity.CENTER
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        artistText = TextView(context).apply {
+            setTextColor(Color.LTGRAY)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(0, 0, 0, 12f.dpToPx(context).toInt())
+        }
+
+        val controls = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
+        val btnSize = 48f.dpToPx(context).toInt()
+        val iconPadding = 8f.dpToPx(context).toInt()
+
+        btnPrev = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setImageResource(R.drawable.ic_prev)
+            setBackgroundResource(android.R.color.transparent)
+            setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+
+        btnPlayPause = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize).apply {
+                setMargins(24f.dpToPx(context).toInt(), 0, 24f.dpToPx(context).toInt(), 0)
+            }
+            setImageResource(R.drawable.ic_pause)
+            setBackgroundResource(android.R.color.transparent)
+            setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+
+        btnNext = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            setImageResource(R.drawable.ic_prev) // We'll rotate it or use separate drawable
+            rotation = 180f
+            setBackgroundResource(android.R.color.transparent)
+            setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+
+        controls.addView(btnPrev)
+        controls.addView(btnPlayPause)
+        controls.addView(btnNext)
+
+        root.addView(titleText)
+        root.addView(artistText)
+        root.addView(controls)
+        addView(root)
+
+        btnPrev.setOnClickListener { onCommand?.invoke("prev") }
+        btnPlayPause.setOnClickListener { onCommand?.invoke("play_pause") }
+        btnNext.setOnClickListener { onCommand?.invoke("next") }
+    }
+
+    fun setCallbacks(onCommand: (String) -> Unit) {
+        this.onCommand = onCommand
+    }
+
+    override fun updateData(stats: PCStats) {
+        stats.media?.let { media ->
+            titleText.text = media.title.ifEmpty { "No Media" }
+            artistText.text = media.artist
+            btnPlayPause.setImageResource(if (media.status == 4) R.drawable.ic_pause else R.drawable.ic_play)
+            visibility = View.VISIBLE
+        } ?: run {
+            titleText.text = "No Media"
+            artistText.text = ""
+            btnPlayPause.setImageResource(R.drawable.ic_play)
+        }
+    }
 }
 
 class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
@@ -285,7 +385,7 @@ class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 object WidgetFactory {
-    fun create(config: WidgetConfig, context: Context, onScreenshot: () -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}, onRunCommand: (String) -> Unit = {}): View {
+    fun create(config: WidgetConfig, context: Context, onScreenshot: () -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}, onRunCommand: (String) -> Unit = {}, onMediaCommand: (String) -> Unit = {}): View {
         return when (config.type) {
             WidgetType.CONTROLS -> ControlsWidgetView(context).apply { setCallbacks(onScreenshot, onSleep, onShutdown) }
             WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply { setCallbacks(onVolumeChange) }
@@ -297,6 +397,7 @@ object WidgetFactory {
             WidgetType.GPU -> GpuWidgetView(context)
             WidgetType.NETWORK -> NetworkWidgetView(context)
             WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply { setup(config, onRunCommand) }
+            WidgetType.MEDIA_PLAYER -> MediaPlayerWidgetView(context).apply { setCallbacks(onMediaCommand) }
         }
     }
 }

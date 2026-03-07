@@ -45,4 +45,8 @@ interface ApiService {
     // --- Выполнение команды (запуск файла/ссылки) ---
     @POST("/run")
     fun runCommand(@Query("path") path: String): Call<String>
+
+    // --- Медиа управление ---
+    @POST("/media/command")
+    fun sendMediaCommand(@Query("cmd") command: String): Call<String>
 }

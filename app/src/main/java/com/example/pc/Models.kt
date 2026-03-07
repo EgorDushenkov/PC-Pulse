@@ -15,7 +15,14 @@ data class PCStats(
     val fans: List<FanData>,
     val procs: List<ProcessData>,
     val volume: Int,
-    val audio_sessions: List<MixerSession>
+    val audio_sessions: List<MixerSession>,
+    val media: MediaData? = null
+)
+
+data class MediaData(
+    val title: String,
+    val artist: String,
+    val status: Int // 4 - Playing, 5 - Paused
 )
 
 data class CpuData(val name: String, val usage: Double, val freq: Double, val temp: Any)
@@ -38,7 +45,8 @@ enum class WidgetType {
     @SerializedName("ram") RAM,
     @SerializedName("gpu") GPU,
     @SerializedName("network") NETWORK,
-    @SerializedName("action_button") ACTION_BUTTON
+    @SerializedName("action_button") ACTION_BUTTON,
+    @SerializedName("media_player") MEDIA_PLAYER
 }
 
 data class WidgetConfig(

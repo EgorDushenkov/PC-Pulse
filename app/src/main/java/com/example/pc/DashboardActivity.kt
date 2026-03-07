@@ -49,8 +49,6 @@ class DashboardActivity : BaseActivity() {
         val ip = intent.getStringExtra("DEVICE_IP") ?: ""
         if (ip.isNotEmpty()) {
             dashIpText.text = "IP: $ip"
-            handler.post(runnable)
-
             openConstructorButton.setOnClickListener {
                 val intent = Intent(this, CustomDashboardActivity::class.java).apply {
                     putExtra("DEVICE_IP", ip)
@@ -58,6 +56,16 @@ class DashboardActivity : BaseActivity() {
                 startActivity(intent)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        handler.post(runnable)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(runnable)
     }
 
     private fun hideSystemUI() {
@@ -106,7 +114,8 @@ class DashboardActivity : BaseActivity() {
         currentApi?.getStats()?.enqueue(object : Callback<PCStats> {
             override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
                 if (response.isSuccessful) response.body()?.let { updateUI(it) }
-                handler.postDelayed(runnable, 1000) // Рекурсивный вызов через секунду ПОСЛЕ ответа
+                // Планируем следующий запрос только после получения ответа
+                handler.postDelayed(runnable, 1000)
             }
             override fun onFailure(call: Call<PCStats>, t: Throwable) {
                 uptimeText.text = "OFFLINE"

@@ -61,7 +61,6 @@ class CustomDashboardActivity : BaseActivity() {
     private val runnable = object : Runnable {
         override fun run() {
             fetchStats()
-            handler.postDelayed(this, 1000)
         }
     }
 
@@ -89,8 +88,16 @@ class CustomDashboardActivity : BaseActivity() {
             testLayout = loadDashboardLayout()
             displayDashboard(testLayout)
         }
+    }
 
+    override fun onResume() {
+        super.onResume()
         if (currentApi != null) handler.post(runnable)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(runnable)
     }
 
     private fun hideSystemUI() {
@@ -130,8 +137,11 @@ class CustomDashboardActivity : BaseActivity() {
                         widgetViews.keys.forEach { (it as? UpdatableWidget)?.updateData(stats) }
                     }
                 }
+                handler.postDelayed(runnable, 1000)
             }
-            override fun onFailure(call: Call<PCStats>, t: Throwable) { }
+            override fun onFailure(call: Call<PCStats>, t: Throwable) {
+                handler.postDelayed(runnable, 1000)
+            }
         })
     }
 
@@ -216,7 +226,10 @@ class CustomDashboardActivity : BaseActivity() {
                     displayDashboard(testLayout)
                 }
             } else {
-                val new = WidgetConfig(type, 0, 0, 3, 2)
+                val new = when(type) {
+                    WidgetType.MEDIA_PLAYER -> WidgetConfig(type, 0, 0, 4, 2)
+                    else -> WidgetConfig(type, 0, 0, 3, 2)
+                }
                 testLayout = testLayout.copy(widgets = testLayout.widgets + new)
                 displayDashboard(testLayout)
             }
@@ -347,7 +360,8 @@ class CustomDashboardActivity : BaseActivity() {
             ::sendShutdownCommand, 
             ::sendMixerVolume,
             { pid -> killProcess(pid) { fetchStats() } },
-            { path -> sendRunCommand(path) }
+            { path -> sendRunCommand(path) },
+            { cmd -> sendMediaCommand(cmd) }
         ) as? CardView
     }
 
@@ -356,6 +370,19 @@ class CustomDashboardActivity : BaseActivity() {
             override fun onResponse(call: Call<String>, response: Response<String>) {
                 if (response.isSuccessful) {
                     Toast.makeText(this@CustomDashboardActivity, "Команда отправлена", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                Toast.makeText(this@CustomDashboardActivity, "Ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun sendMediaCommand(cmd: String) {
+        currentApi?.sendMediaCommand(cmd)?.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                if (!response.isSuccessful) {
+                    Toast.makeText(this@CustomDashboardActivity, "Ошибка медиа", Toast.LENGTH_SHORT).show()
                 }
             }
             override fun onFailure(call: Call<String>, t: Throwable) {

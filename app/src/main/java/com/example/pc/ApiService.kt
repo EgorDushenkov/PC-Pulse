@@ -41,4 +41,8 @@ interface ApiService {
 
     @POST("/power/sleep")
     fun sleepPC(): Call<String>
+
+    // --- Выполнение команды (запуск файла/ссылки) ---
+    @POST("/run")
+    fun runCommand(@Query("path") path: String): Call<String>
 }

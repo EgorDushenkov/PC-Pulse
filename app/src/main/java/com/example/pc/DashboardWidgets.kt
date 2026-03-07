@@ -39,6 +39,29 @@ abstract class BaseWidgetView @JvmOverloads constructor(
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, context.resources.displayMetrics)
 }
 
+class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
+    private val button: Button
+    init {
+        button = Button(context).apply {
+            layoutParams = LayoutParams(-1, -1)
+            setBackgroundColor(Color.TRANSPARENT)
+            setTextColor(Color.WHITE)
+            textSize = 14f
+            isAllCaps = false
+        }
+        addView(button)
+    }
+
+    fun setup(config: WidgetConfig, onClick: (String) -> Unit) {
+        button.text = config.label ?: "Action"
+        button.setOnClickListener {
+            config.action?.let { onClick(it) }
+        }
+    }
+
+    override fun updateData(stats: PCStats) {}
+}
+
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnScrenshot: ImageButton
     private val btnSleep: ImageButton
@@ -262,8 +285,8 @@ class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 object WidgetFactory {
-    fun create(type: WidgetType, context: Context, onScreenshot: () -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}): View {
-        return when (type) {
+    fun create(config: WidgetConfig, context: Context, onScreenshot: () -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}, onRunCommand: (String) -> Unit = {}): View {
+        return when (config.type) {
             WidgetType.CONTROLS -> ControlsWidgetView(context).apply { setCallbacks(onScreenshot, onSleep, onShutdown) }
             WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply { setCallbacks(onVolumeChange) }
             WidgetType.STORAGE -> StorageWidgetView(context)
@@ -273,6 +296,7 @@ object WidgetFactory {
             WidgetType.RAM -> RamWidgetView(context)
             WidgetType.GPU -> GpuWidgetView(context)
             WidgetType.NETWORK -> NetworkWidgetView(context)
+            WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply { setup(config, onRunCommand) }
         }
     }
 }

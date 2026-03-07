@@ -15,12 +15,13 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.cardview.widget.CardView
-import androidx.constraintlayout.widget.ConstraintLayout
 import com.google.gson.Gson
 import retrofit2.Call
 import retrofit2.Callback
@@ -207,10 +208,39 @@ class CustomDashboardActivity : BaseActivity() {
         val types = WidgetType.entries.toTypedArray()
         val names = types.map { it.name.lowercase().replace('_', ' ').replaceFirstChar { c -> c.uppercase() } }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Добавить виджет").setItems(names) { _, which ->
-            val new = WidgetConfig(types[which], 0, 0, 3, 2)
-            testLayout = testLayout.copy(widgets = testLayout.widgets + new)
-            displayDashboard(testLayout)
+            val type = types[which]
+            if (type == WidgetType.ACTION_BUTTON) {
+                showActionButtonConfigDialog { label, path ->
+                    val new = WidgetConfig(type, 0, 0, 2, 2, label, path)
+                    testLayout = testLayout.copy(widgets = testLayout.widgets + new)
+                    displayDashboard(testLayout)
+                }
+            } else {
+                val new = WidgetConfig(type, 0, 0, 3, 2)
+                testLayout = testLayout.copy(widgets = testLayout.widgets + new)
+                displayDashboard(testLayout)
+            }
         }.setNegativeButton("Отмена", null).show()
+    }
+
+    private fun showActionButtonConfigDialog(onSave: (String, String) -> Unit) {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+        }
+        val editLabel = EditText(this).apply { hint = "Название кнопки (например, Steam)" }
+        val editPath = EditText(this).apply { hint = "Путь к файлу или URL" }
+        layout.addView(editLabel)
+        layout.addView(editPath)
+
+        AlertDialog.Builder(this)
+            .setTitle("Настройка кнопки")
+            .setView(layout)
+            .setPositiveButton("Добавить") { _, _ ->
+                onSave(editLabel.text.toString(), editPath.text.toString())
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
     private fun setupDragAndDrop(view: View) {
@@ -222,7 +252,6 @@ class CustomDashboardActivity : BaseActivity() {
         val dh = deleteHandles[view]!!
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // Вычисляем смещение относительно реальных координат X/Y (с учетом отступа)
                 dX = view.x - event.rawX
                 dY = view.y - event.rawY
                 view.bringToFront(); rh.bringToFront(); dh.bringToFront()
@@ -235,7 +264,6 @@ class CustomDashboardActivity : BaseActivity() {
             }
             MotionEvent.ACTION_UP -> {
                 val cfg = widgetViews[view] ?: return
-                // Привязываем к сетке по ЦЕНТРУ ячейки
                 val gx = (view.x / cellWidth).roundToInt().coerceIn(0, gridColumns - cfg.width)
                 val gy = (view.y / cellHeight).roundToInt().coerceIn(0, gridRows - cfg.height)
                 updateWidgetConfig(view, cfg.copy(x = gx, y = gy))
@@ -262,7 +290,6 @@ class CustomDashboardActivity : BaseActivity() {
             }
             MotionEvent.ACTION_UP -> {
                 val cfg = widgetViews[view] ?: return
-                // Вычисляем количество ячеек, округляя физический размер
                 val nw = ((lp.width + 16) / cellWidth.toFloat()).roundToInt().coerceIn(1, gridColumns - cfg.x)
                 val nh = ((lp.height + 16) / cellHeight.toFloat()).roundToInt().coerceIn(1, gridRows - cfg.y)
                 updateWidgetConfig(view, cfg.copy(width = nw, height = nh))
@@ -282,7 +309,7 @@ class CustomDashboardActivity : BaseActivity() {
     }
 
     private fun applyWidgetLayout(view: View, config: WidgetConfig, anim: Boolean) {
-        val gap = (4 * resources.displayMetrics.density).toInt() // Отступ 4dp со всех сторон
+        val gap = (4 * resources.displayMetrics.density).toInt()
         
         val targetWidth = config.width * cellWidth - (gap * 2)
         val targetHeight = config.height * cellHeight - (gap * 2)
@@ -292,7 +319,7 @@ class CustomDashboardActivity : BaseActivity() {
         view.layoutParams.width = targetWidth
         view.layoutParams.height = targetHeight
         
-        val hSize = 60 // Размер кнопок управления
+        val hSize = 60
         val rh = resizeHandles[view]
         val dh = deleteHandles[view]
         
@@ -312,7 +339,29 @@ class CustomDashboardActivity : BaseActivity() {
     }
 
     private fun createWidget(config: WidgetConfig): CardView? {
-        return WidgetFactory.create(config.type, this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand, ::sendMixerVolume) { pid -> killProcess(pid) { fetchStats() } } as? CardView
+        return WidgetFactory.create(
+            config, 
+            this, 
+            ::showScreenshotDialog, 
+            ::sendSleepCommand, 
+            ::sendShutdownCommand, 
+            ::sendMixerVolume,
+            { pid -> killProcess(pid) { fetchStats() } },
+            { path -> sendRunCommand(path) }
+        ) as? CardView
+    }
+
+    private fun sendRunCommand(path: String) {
+        currentApi?.runCommand(path)?.enqueue(object : Callback<String> {
+            override fun onResponse(call: Call<String>, response: Response<String>) {
+                if (response.isSuccessful) {
+                    Toast.makeText(this@CustomDashboardActivity, "Команда отправлена", Toast.LENGTH_SHORT).show()
+                }
+            }
+            override fun onFailure(call: Call<String>, t: Throwable) {
+                Toast.makeText(this@CustomDashboardActivity, "Ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
+        })
     }
 
     private inner class GridDrawable : android.graphics.drawable.Drawable() {

@@ -37,7 +37,8 @@ enum class WidgetType {
     @SerializedName("cpu") CPU,
     @SerializedName("ram") RAM,
     @SerializedName("gpu") GPU,
-    @SerializedName("network") NETWORK
+    @SerializedName("network") NETWORK,
+    @SerializedName("action_button") ACTION_BUTTON
 }
 
 data class WidgetConfig(
@@ -45,7 +46,9 @@ data class WidgetConfig(
     @SerializedName("x_position") val x: Int,
     @SerializedName("y_position") val y: Int,
     @SerializedName("width_span") val width: Int,
-    @SerializedName("height_span") val height: Int
+    @SerializedName("height_span") val height: Int,
+    @SerializedName("label") val label: String? = null,
+    @SerializedName("action") val action: String? = null
 )
 
 data class DashboardLayout(

@@ -130,11 +130,11 @@ class DashboardActivity : BaseActivity() {
         netDownText.text = "↓ ${s.network.down_kbps.toInt()} KB/s"
         netUpText.text = "↑ ${s.network.up_kbps.toInt()} KB/s"
 
-        updateDynamicWidget(WidgetType.CONTROLS) { WidgetFactory.create(WidgetType.CONTROLS, this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand) }
-        updateDynamicWidget(WidgetType.AUDIO_MIXER) { WidgetFactory.create(WidgetType.AUDIO_MIXER, this, onVolumeChange = ::sendMixerVolume) }
-        updateDynamicWidget(WidgetType.STORAGE) { WidgetFactory.create(WidgetType.STORAGE, this) }
-        updateDynamicWidget(WidgetType.COOLING) { WidgetFactory.create(WidgetType.COOLING, this) }
-        updateDynamicWidget(WidgetType.TOP_PROCESSES) { WidgetFactory.create(WidgetType.TOP_PROCESSES, this, onKill = { pid -> killProcess(pid) { fetchStats() } }) }
+        updateDynamicWidget(WidgetType.CONTROLS) { WidgetFactory.create(WidgetConfig(WidgetType.CONTROLS, 0, 0, 1, 1), this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand) }
+        updateDynamicWidget(WidgetType.AUDIO_MIXER) { WidgetFactory.create(WidgetConfig(WidgetType.AUDIO_MIXER, 0, 0, 1, 1), this, onVolumeChange = ::sendMixerVolume) }
+        updateDynamicWidget(WidgetType.STORAGE) { WidgetFactory.create(WidgetConfig(WidgetType.STORAGE, 0, 0, 1, 1), this) }
+        updateDynamicWidget(WidgetType.COOLING) { WidgetFactory.create(WidgetConfig(WidgetType.COOLING, 0, 0, 1, 1), this) }
+        updateDynamicWidget(WidgetType.TOP_PROCESSES) { WidgetFactory.create(WidgetConfig(WidgetType.TOP_PROCESSES, 0, 0, 1, 1), this, onKill = { pid -> killProcess(pid) { fetchStats() } }) }
 
         containers.values.forEach { (it.getChildAt(0) as? UpdatableWidget)?.updateData(s) }
     }

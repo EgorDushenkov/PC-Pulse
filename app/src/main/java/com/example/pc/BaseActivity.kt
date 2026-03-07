@@ -1,10 +1,14 @@
 package com.example.pc
 
+import android.content.ContentValues
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
-import android.view.View
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -13,6 +17,7 @@ import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.io.OutputStream
 
 abstract class BaseActivity : AppCompatActivity() {
 
@@ -46,7 +51,6 @@ abstract class BaseActivity : AppCompatActivity() {
                 if (response.isSuccessful) {
                     val body = response.body()
                     if (body != null) {
-                        // Выполняем чтение байтов и декодирование в фоновом потоке
                         Thread {
                             try {
                                 val bytes = body.bytes()
@@ -60,6 +64,9 @@ abstract class BaseActivity : AppCompatActivity() {
                                             .setTitle("PC Screenshot")
                                             .setView(view)
                                             .setPositiveButton("Закрыть", null)
+                                            .setNeutralButton("Сохранить") { _, _ ->
+                                                saveBitmapToGallery(bitmap)
+                                            }
                                             .show()
                                     } else {
                                         Toast.makeText(this@BaseActivity, "Ошибка: Не удалось декодировать изображение", Toast.LENGTH_LONG).show()
@@ -84,6 +91,34 @@ abstract class BaseActivity : AppCompatActivity() {
                 Toast.makeText(this@BaseActivity, "Ошибка сети: ${t.message}", Toast.LENGTH_SHORT).show()
             }
         })
+    }
+
+    private fun saveBitmapToGallery(bitmap: Bitmap) {
+        val filename = "PC_Screenshot_${System.currentTimeMillis()}.jpg"
+        var fos: OutputStream? = null
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentResolver?.also { resolver ->
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                    }
+                    val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                    fos = imageUri?.let { resolver.openOutputStream(it) }
+                }
+            } else {
+                val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                val image = java.io.File(imagesDir, filename)
+                fos = java.io.FileOutputStream(image)
+            }
+            fos?.use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
+                Toast.makeText(this, "Сохранено в галерею", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка сохранения: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     protected fun sendMixerVolume(appName: String, volume: Int) {

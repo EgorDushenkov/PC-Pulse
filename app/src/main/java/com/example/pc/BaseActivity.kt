@@ -3,6 +3,7 @@ package com.example.pc
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.ImageView
 import android.widget.Toast
@@ -39,18 +40,49 @@ abstract class BaseActivity : AppCompatActivity() {
     }
 
     protected fun showScreenshotDialog() {
-        Toast.makeText(this, "Taking Screenshot...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Загрузка скриншота...", Toast.LENGTH_SHORT).show()
         currentApi?.getScreenshot()?.enqueue(object : Callback<ResponseBody> {
             override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                if (response.isSuccessful && response.body() != null) {
-                    val bytes = response.body()!!.bytes()
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    val view = layoutInflater.inflate(R.layout.dialog_screenshot, null)
-                    view.findViewById<ImageView>(R.id.screenshotImage).setImageBitmap(bitmap)
-                    AlertDialog.Builder(this@BaseActivity).setTitle("PC Screenshot").setView(view).setPositiveButton("Close", null).show()
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body != null) {
+                        // Выполняем чтение байтов и декодирование в фоновом потоке
+                        Thread {
+                            try {
+                                val bytes = body.bytes()
+                                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                
+                                runOnUiThread {
+                                    if (bitmap != null) {
+                                        val view = layoutInflater.inflate(R.layout.dialog_screenshot, null)
+                                        view.findViewById<ImageView>(R.id.screenshotImage).setImageBitmap(bitmap)
+                                        AlertDialog.Builder(this@BaseActivity)
+                                            .setTitle("PC Screenshot")
+                                            .setView(view)
+                                            .setPositiveButton("Закрыть", null)
+                                            .show()
+                                    } else {
+                                        Toast.makeText(this@BaseActivity, "Ошибка: Не удалось декодировать изображение", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("Screenshot", "Error reading response body", e)
+                                runOnUiThread {
+                                    Toast.makeText(this@BaseActivity, "Ошибка чтения данных: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }.start()
+                    } else {
+                        Toast.makeText(this@BaseActivity, "Ошибка: Пустой ответ от сервера", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this@BaseActivity, "Сервер вернул ошибку: ${response.code()}", Toast.LENGTH_SHORT).show()
                 }
             }
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {}
+
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
+                Toast.makeText(this@BaseActivity, "Ошибка сети: ${t.message}", Toast.LENGTH_SHORT).show()
+            }
         })
     }
 

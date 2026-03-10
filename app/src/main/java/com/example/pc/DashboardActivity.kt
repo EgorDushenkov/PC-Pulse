@@ -114,7 +114,6 @@ class DashboardActivity : BaseActivity() {
         currentApi?.getStats()?.enqueue(object : Callback<PCStats> {
             override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
                 if (response.isSuccessful) response.body()?.let { updateUI(it) }
-                // Планируем следующий запрос только после получения ответа
                 handler.postDelayed(runnable, 1000)
             }
             override fun onFailure(call: Call<PCStats>, t: Throwable) {

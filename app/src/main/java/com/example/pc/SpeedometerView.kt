@@ -34,7 +34,6 @@ class SpeedometerView @JvmOverloads constructor(
     private var centerY = 0f
 
     init {
-        // Пытаемся взять основной цвет темы как дефолтный
         val typedValue = TypedValue()
         if (context.theme.resolveAttribute(androidx.appcompat.R.attr.colorPrimary, typedValue, true)) {
             speedometerColor = typedValue.data
@@ -44,7 +43,7 @@ class SpeedometerView @JvmOverloads constructor(
         speedometerColor = typedArray.getColor(R.styleable.SpeedometerView_speedometerColor, speedometerColor)
         speedometerBackgroundColor = typedArray.getColor(R.styleable.SpeedometerView_speedometerBackgroundColor, speedometerBackgroundColor)
         titleTextColor = typedArray.getColor(R.styleable.SpeedometerView_titleTextColor, titleTextColor)
-        valueTextColor = typedArray.getColor(R.styleable.SpeedometerView_textColor, speedometerColor) // По умолчанию цвет значения такой же как шкалы
+        valueTextColor = typedArray.getColor(R.styleable.SpeedometerView_textColor, speedometerColor)
         titleText = typedArray.getString(R.styleable.SpeedometerView_titleText) ?: ""
         value = typedArray.getFloat(R.styleable.SpeedometerView_value, 0f)
         maxValue = typedArray.getFloat(R.styleable.SpeedometerView_maxValue, 100f)
@@ -104,7 +103,6 @@ class SpeedometerView @JvmOverloads constructor(
         val valueY = centerY + 30
         canvas.drawText(titleText, centerX, titleY, titleTextPaint)
         
-        // Обновляем цвет текста значения перед отрисовкой, если он должен совпадать с темой
         canvas.drawText("${value.toInt()}%", centerX, valueY, valueTextPaint)
     }
 
@@ -113,7 +111,6 @@ class SpeedometerView @JvmOverloads constructor(
         invalidate()
     }
 
-    // Метод для динамической смены цвета (например, в конструкторе)
     fun setMainColor(color: Int) {
         speedometerColor = color
         valueTextColor = color

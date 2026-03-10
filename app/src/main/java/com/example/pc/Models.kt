@@ -2,7 +2,6 @@ package com.example.pc
 
 import com.google.gson.annotations.SerializedName
 
-// --- PC Stats Models ---
 data class PCStats(
     val pc_name: String,
     val time: String,
@@ -22,7 +21,7 @@ data class PCStats(
 data class MediaData(
     val title: String,
     val artist: String,
-    val status: Int // 4 - Playing, 5 - Paused
+    val status: Int
 )
 
 data class CpuData(val name: String, val usage: Double, val freq: Double, val temp: Any)
@@ -34,7 +33,6 @@ data class FanData(val name: String, val rpm: Int)
 data class ProcessData(val pid: Int, val name: String, val cpu: Double)
 data class MixerSession(val name: String, val volume: Int)
 
-// --- Dashboard Configuration Models ---
 enum class WidgetType {
     @SerializedName("controls") CONTROLS,
     @SerializedName("audio_mixer") AUDIO_MIXER,
@@ -64,7 +62,6 @@ data class DashboardLayout(
     @SerializedName("widgets") val widgets: List<WidgetConfig>
 )
 
-// --- Interfaces ---
 interface UpdatableWidget {
     fun updateData(stats: PCStats)
 }

@@ -8,45 +8,36 @@ import retrofit2.http.Query
 
 interface ApiService {
 
-    // --- Основная статистика ---
     @GET("/stats")
     fun getStats(): Call<PCStats>
 
-    // --- Скриншот ---
     @GET("/screenshot")
     fun getScreenshot(): Call<ResponseBody>
 
-    // --- Общая громкость ---
     @POST("/volume")
     fun setVolume(@Query("val") value: Int): Call<String>
 
-    // --- Микшер громкости (GET) ---
     @GET("/mixer")
     fun getMixerSessions(): Call<List<MixerSession>>
 
-    // --- Микшер громкости (SET) ---
     @POST("/mixer/set")
     fun setMixerVolume(
         @Query("app") appName: String,
         @Query("vol") volume: Int
     ): Call<String>
 
-    // --- Завершение процесса ---
     @POST("/process/kill")
     fun killProcess(@Query("pid") pid: Int): Call<String>
 
-    // --- Управление питанием ---
     @POST("/power/shutdown")
     fun shutdownPC(): Call<String>
 
     @POST("/power/sleep")
     fun sleepPC(): Call<String>
 
-    // --- Выполнение команды (запуск файла/ссылки) ---
     @POST("/run")
     fun runCommand(@Query("path") path: String): Call<String>
 
-    // --- Медиа управление ---
     @POST("/media/command")
     fun sendMediaCommand(@Query("cmd") command: String): Call<String>
 }

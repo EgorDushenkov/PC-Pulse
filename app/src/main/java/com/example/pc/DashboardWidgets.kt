@@ -141,7 +141,7 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
 
         btnNext = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
-            setImageResource(R.drawable.ic_prev) // We'll rotate it or use separate drawable
+            setImageResource(R.drawable.ic_prev)
             rotation = 180f
             setBackgroundResource(android.R.color.transparent)
             setPadding(iconPadding, iconPadding, iconPadding, iconPadding)

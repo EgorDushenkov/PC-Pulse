@@ -65,20 +65,29 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
 
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnScrenshot: ImageButton
+    private val btnMic: ImageButton
     private val btnSleep: ImageButton
     private val btnShutdown: ImageButton
+    private var isMuted = false
+
     init {
         val v = LayoutInflater.from(context).inflate(R.layout.widget_controls, this, true)
         btnScrenshot = v.findViewById(R.id.screenshot_button)
+        btnMic = v.findViewById(R.id.mic_button)
         btnSleep = v.findViewById(R.id.sleep_button)
         btnShutdown = v.findViewById(R.id.shutdown_button)
     }
-    fun setCallbacks(onScreenshot: () -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
+    fun setCallbacks(onScreenshot: () -> Unit, onMicMute: (Boolean) -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
         btnScrenshot.setOnClickListener { onScreenshot() }
+        btnMic.setOnClickListener { onMicMute(!isMuted) }
         btnSleep.setOnClickListener { onSleep() }
         btnShutdown.setOnClickListener { onShutdown() }
     }
-    override fun updateData(stats: PCStats) {}
+    override fun updateData(stats: PCStats) {
+        isMuted = stats.mic_muted
+        val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
+        btnMic.setColorFilter(if (isMuted) Color.BLACK else themeColor)
+    }
 }
 
 class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
@@ -385,9 +394,9 @@ class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 object WidgetFactory {
-    fun create(config: WidgetConfig, context: Context, onScreenshot: () -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}, onRunCommand: (String) -> Unit = {}, onMediaCommand: (String) -> Unit = {}): View {
+    fun create(config: WidgetConfig, context: Context, onScreenshot: () -> Unit = {}, onMicMute: (Boolean) -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}, onRunCommand: (String) -> Unit = {}, onMediaCommand: (String) -> Unit = {}): View {
         return when (config.type) {
-            WidgetType.CONTROLS -> ControlsWidgetView(context).apply { setCallbacks(onScreenshot, onSleep, onShutdown) }
+            WidgetType.CONTROLS -> ControlsWidgetView(context).apply { setCallbacks(onScreenshot, onMicMute, onSleep, onShutdown) }
             WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply { setCallbacks(onVolumeChange) }
             WidgetType.STORAGE -> StorageWidgetView(context)
             WidgetType.COOLING -> CoolingWidgetView(context)

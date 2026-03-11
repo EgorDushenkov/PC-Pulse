@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,9 +16,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import okhttp3.*
+import java.util.concurrent.TimeUnit
 
 data class Device(
     val ipAddress: String,
@@ -38,13 +38,17 @@ class MainActivity : BaseActivity() {
     private val devices = mutableListOf<Device>()
     private var currentDeviceIndex = 0
 
+    private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(2, TimeUnit.SECONDS)
+        .build()
+
     private val runnable = object : Runnable {
         override fun run() {
             if (devices.isNotEmpty()) {
                 fetchStatsForDevice(currentDeviceIndex)
                 currentDeviceIndex = (currentDeviceIndex + 1) % devices.size
             }
-            handler.postDelayed(this, 2000)
+            handler.postDelayed(this, 5000) // Реже проверяем в списке
         }
     }
 
@@ -128,24 +132,32 @@ class MainActivity : BaseActivity() {
 
     private fun fetchStatsForDevice(index: Int) {
         val device = devices[index]
-        val api = RetrofitClient.getClient(device.ipAddress)
-        api.getStats().enqueue(object : Callback<PCStats> {
-            override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
-                if (response.isSuccessful) {
-                    response.body()?.let {
+        val wsUrl = "ws://${device.ipAddress}:5000/ws"
+        val request = Request.Builder().url(wsUrl).build()
+        
+        okHttpClient.newWebSocket(request, object : WebSocketListener() {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                try {
+                    val stats = gson.fromJson(text, PCStats::class.java)
+                    runOnUiThread {
                         device.isOnline = true
-                        device.pcName = it.pc_name
-                        device.status = "Online | ${it.time}"
-                        device.quickStats = "CPU: ${it.cpu.usage}% | GPU: ${it.gpu.getOrNull(0)?.load ?: 0}%"
+                        device.pcName = stats.pc_name
+                        device.status = "Online | ${stats.time}"
+                        device.quickStats = "CPU: ${stats.cpu.usage.toInt()}% | GPU: ${stats.gpu.getOrNull(0)?.load ?: 0}%"
+                        deviceAdapter.notifyItemChanged(index)
                     }
-                } else {
-                    device.isOnline = false
+                } catch (e: Exception) {
+                    Log.e("WS_Check", "Error parsing stats", e)
                 }
-                deviceAdapter.notifyItemChanged(index)
+                webSocket.close(1000, "Status check done")
             }
-            override fun onFailure(call: Call<PCStats>, t: Throwable) {
-                device.isOnline = false
-                deviceAdapter.notifyItemChanged(index)
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                runOnUiThread {
+                    device.isOnline = false
+                    device.status = "Offline"
+                    deviceAdapter.notifyItemChanged(index)
+                }
             }
         })
     }

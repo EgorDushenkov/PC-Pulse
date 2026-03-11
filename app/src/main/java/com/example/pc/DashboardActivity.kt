@@ -3,17 +3,12 @@ package com.example.pc
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class DashboardActivity : BaseActivity() {
 
@@ -31,13 +26,6 @@ class DashboardActivity : BaseActivity() {
     private lateinit var netUpText: TextView
     private lateinit var containers: Map<WidgetType, LinearLayout>
     private lateinit var openConstructorButton: Button
-
-    private val handler = Handler(Looper.getMainLooper())
-    private val runnable = object : Runnable {
-        override fun run() {
-            fetchStats()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,14 +46,10 @@ class DashboardActivity : BaseActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        handler.post(runnable)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        handler.removeCallbacks(runnable)
+    override fun onStatsUpdated(stats: PCStats) {
+        runOnUiThread {
+            updateUI(stats)
+        }
     }
 
     private fun hideSystemUI() {
@@ -110,19 +94,6 @@ class DashboardActivity : BaseActivity() {
         )
     }
 
-    private fun fetchStats() {
-        currentApi?.getStats()?.enqueue(object : Callback<PCStats> {
-            override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
-                if (response.isSuccessful) response.body()?.let { updateUI(it) }
-                handler.postDelayed(runnable, 1000)
-            }
-            override fun onFailure(call: Call<PCStats>, t: Throwable) {
-                uptimeText.text = "OFFLINE"
-                handler.postDelayed(runnable, 1000)
-            }
-        })
-    }
-
     private fun updateUI(s: PCStats) {
         uptimeText.text = "Uptime: ${s.uptime} h"
         cpuSpeedometer.setValue(s.cpu.usage.toFloat())
@@ -138,11 +109,20 @@ class DashboardActivity : BaseActivity() {
         netDownText.text = "↓ ${s.network.down_kbps.toInt()} KB/s"
         netUpText.text = "↑ ${s.network.up_kbps.toInt()} KB/s"
 
-        updateDynamicWidget(WidgetType.CONTROLS) { WidgetFactory.create(WidgetConfig(WidgetType.CONTROLS, 0, 0, 1, 1), this, ::showScreenshotDialog, ::sendSleepCommand, ::sendShutdownCommand) }
+        updateDynamicWidget(WidgetType.CONTROLS) { 
+            WidgetFactory.create(
+                config = WidgetConfig(WidgetType.CONTROLS, 0, 0, 1, 1), 
+                context = this, 
+                onScreenshot = ::showScreenshotDialog, 
+                onMicMute = ::sendMicMute,
+                onSleep = ::sendSleepCommand, 
+                onShutdown = ::sendShutdownCommand
+            ) 
+        }
         updateDynamicWidget(WidgetType.AUDIO_MIXER) { WidgetFactory.create(WidgetConfig(WidgetType.AUDIO_MIXER, 0, 0, 1, 1), this, onVolumeChange = ::sendMixerVolume) }
         updateDynamicWidget(WidgetType.STORAGE) { WidgetFactory.create(WidgetConfig(WidgetType.STORAGE, 0, 0, 1, 1), this) }
         updateDynamicWidget(WidgetType.COOLING) { WidgetFactory.create(WidgetConfig(WidgetType.COOLING, 0, 0, 1, 1), this) }
-        updateDynamicWidget(WidgetType.TOP_PROCESSES) { WidgetFactory.create(WidgetConfig(WidgetType.TOP_PROCESSES, 0, 0, 1, 1), this, onKill = { pid -> killProcess(pid) { fetchStats() } }) }
+        updateDynamicWidget(WidgetType.TOP_PROCESSES) { WidgetFactory.create(WidgetConfig(WidgetType.TOP_PROCESSES, 0, 0, 1, 1), this, onKill = { pid -> killProcess(pid) }) }
 
         containers.values.forEach { (it.getChildAt(0) as? UpdatableWidget)?.updateData(s) }
     }
@@ -152,10 +132,5 @@ class DashboardActivity : BaseActivity() {
             if (it.childCount == 0) it.addView(factory())
             it.visibility = View.VISIBLE
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        handler.removeCallbacks(runnable)
     }
 }

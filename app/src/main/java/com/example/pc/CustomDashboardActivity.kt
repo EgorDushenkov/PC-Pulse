@@ -8,8 +8,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
@@ -22,10 +20,6 @@ import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.cardview.widget.CardView
-import com.google.gson.Gson
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import kotlin.math.roundToInt
 
 @SuppressLint("ClickableViewAccessibility")
@@ -52,17 +46,10 @@ class CustomDashboardActivity : BaseActivity() {
     private var startWidth = 0
     private var startHeight = 0
 
-    private val gson = Gson()
     private val prefsName = "DashboardPrefs"
     private val layoutKey = "dashboardLayout"
 
-    private val handler = Handler(Looper.getMainLooper())
     private var currentStats: PCStats? = null
-    private val runnable = object : Runnable {
-        override fun run() {
-            fetchStats()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,14 +77,9 @@ class CustomDashboardActivity : BaseActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (currentApi != null) handler.post(runnable)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        handler.removeCallbacks(runnable)
+    override fun onStatsUpdated(stats: PCStats) {
+        currentStats = stats
+        widgetViews.keys.forEach { (it as? UpdatableWidget)?.updateData(stats) }
     }
 
     private fun hideSystemUI() {
@@ -121,28 +103,6 @@ class CustomDashboardActivity : BaseActivity() {
     override fun onStop() {
         super.onStop()
         saveDashboardLayout()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        handler.removeCallbacks(runnable)
-    }
-
-    private fun fetchStats() {
-        currentApi?.getStats()?.enqueue(object : Callback<PCStats> {
-            override fun onResponse(call: Call<PCStats>, response: Response<PCStats>) {
-                if (response.isSuccessful) {
-                    currentStats = response.body()
-                    currentStats?.let { stats ->
-                        widgetViews.keys.forEach { (it as? UpdatableWidget)?.updateData(stats) }
-                    }
-                }
-                handler.postDelayed(runnable, 1000)
-            }
-            override fun onFailure(call: Call<PCStats>, t: Throwable) {
-                handler.postDelayed(runnable, 1000)
-            }
-        })
     }
 
     private fun saveDashboardLayout() {
@@ -181,7 +141,13 @@ class CustomDashboardActivity : BaseActivity() {
 
             setupDragAndDrop(widgetView)
 
-            val rh = createHandle(widgetView, android.R.drawable.ic_menu_crop, getThemeColor(androidx.appcompat.R.attr.colorPrimary), 0.5f) { e -> handleResize(widgetView, e) }
+            val themeColor = try {
+                val typedValue = android.util.TypedValue()
+                theme.resolveAttribute(androidx.appcompat.R.attr.colorPrimary, typedValue, true)
+                typedValue.data
+            } catch (e: Exception) { Color.BLUE }
+
+            val rh = createHandle(widgetView, android.R.drawable.ic_menu_crop, themeColor, 0.5f) { e -> handleResize(widgetView, e) }
             dashboardCanvas.addView(rh)
             resizeHandles[widgetView] = rh
 
@@ -353,46 +319,39 @@ class CustomDashboardActivity : BaseActivity() {
 
     private fun createWidget(config: WidgetConfig): CardView? {
         return WidgetFactory.create(
-            config, 
-            this, 
-            ::showScreenshotDialog, 
-            ::sendSleepCommand, 
-            ::sendShutdownCommand, 
-            ::sendMixerVolume,
-            { pid -> killProcess(pid) { fetchStats() } },
-            { path -> sendRunCommand(path) },
-            { cmd -> sendMediaCommand(cmd) }
+            config = config,
+            context = this,
+            onScreenshot = ::showScreenshotDialog,
+            onMicMute = ::sendMicMute,
+            onSleep = ::sendSleepCommand,
+            onShutdown = ::sendShutdownCommand,
+            onVolumeChange = ::sendMixerVolume,
+            onKill = { pid -> killProcess(pid) },
+            onRunCommand = { path -> sendRunCommand(path) },
+            onMediaCommand = { cmd -> sendMediaCommand(cmd) }
         ) as? CardView
     }
 
     private fun sendRunCommand(path: String) {
-        currentApi?.runCommand(path)?.enqueue(object : Callback<String> {
-            override fun onResponse(call: Call<String>, response: Response<String>) {
-                if (response.isSuccessful) {
-                    Toast.makeText(this@CustomDashboardActivity, "Команда отправлена", Toast.LENGTH_SHORT).show()
-                }
-            }
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                Toast.makeText(this@CustomDashboardActivity, "Ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        webSocketManager?.sendCommand("run", mapOf("path" to path))
+        Toast.makeText(this, "Команда отправлена", Toast.LENGTH_SHORT).show()
     }
 
     private fun sendMediaCommand(cmd: String) {
-        currentApi?.sendMediaCommand(cmd)?.enqueue(object : Callback<String> {
-            override fun onResponse(call: Call<String>, response: Response<String>) {
-                if (!response.isSuccessful) {
-                    Toast.makeText(this@CustomDashboardActivity, "Ошибка медиа", Toast.LENGTH_SHORT).show()
-                }
-            }
-            override fun onFailure(call: Call<String>, t: Throwable) {
-                Toast.makeText(this@CustomDashboardActivity, "Ошибка: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        webSocketManager?.sendCommand("media_command", mapOf("cmd" to cmd))
     }
 
     private inner class GridDrawable : android.graphics.drawable.Drawable() {
-        private val p = Paint().apply { color = getThemeColor(androidx.appcompat.R.attr.colorPrimary); alpha = 40; strokeWidth = 2f; style = Paint.Style.STROKE }
+        private val p = Paint().apply { 
+            color = try {
+                val typedValue = android.util.TypedValue()
+                theme.resolveAttribute(androidx.appcompat.R.attr.colorPrimary, typedValue, true)
+                typedValue.data
+            } catch (e: Exception) { Color.BLUE }
+            alpha = 40
+            strokeWidth = 2f
+            style = Paint.Style.STROKE 
+        }
         override fun draw(c: Canvas) {
             if (!isEditMode) return
             val cw = bounds.width() / gridColumns.toFloat(); val ch = bounds.height() / gridRows.toFloat()

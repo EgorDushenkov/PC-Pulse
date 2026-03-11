@@ -14,6 +14,7 @@ data class PCStats(
     val fans: List<FanData>,
     val procs: List<ProcessData>,
     val volume: Int,
+    val mic_muted: Boolean = false,
     val audio_sessions: List<MixerSession>,
     val media: MediaData? = null
 )

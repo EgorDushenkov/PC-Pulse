@@ -17,6 +17,9 @@ interface ApiService {
     @POST("/volume")
     fun setVolume(@Query("val") value: Int): Call<String>
 
+    @POST("/mic/mute")
+    fun toggleMicMute(@Query("mute") mute: Int): Call<String>
+
     @GET("/mixer")
     fun getMixerSessions(): Call<List<MixerSession>>
 

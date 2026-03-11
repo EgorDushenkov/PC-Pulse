@@ -13,6 +13,7 @@ import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.gson.Gson
 import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
@@ -22,14 +23,28 @@ import java.io.OutputStream
 abstract class BaseActivity : AppCompatActivity() {
 
     protected var currentApi: ApiService? = null
+    protected var webSocketManager: WebSocketManager? = null
+    protected val gson = Gson()
+
+    open fun onStatsUpdated(stats: PCStats) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyAppTheme()
         super.onCreate(savedInstanceState)
         
-        intent.getStringExtra("DEVICE_IP")?.let {
-            currentApi = RetrofitClient.getClient(it)
+        intent.getStringExtra("DEVICE_IP")?.let { ip ->
+            currentApi = RetrofitClient.getClient(ip)
+            
+            webSocketManager = WebSocketManager(gson) { stats ->
+                onStatsUpdated(stats)
+            }
+            webSocketManager?.connect("ws://$ip:5000/ws")
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        webSocketManager?.disconnect()
     }
 
     protected fun applyAppTheme() {
@@ -122,34 +137,27 @@ abstract class BaseActivity : AppCompatActivity() {
     }
 
     protected fun sendMixerVolume(appName: String, volume: Int) {
-        currentApi?.setMixerVolume(appName, volume)?.enqueue(object : Callback<String> {
-            override fun onResponse(call: Call<String>, response: Response<String>) {}
-            override fun onFailure(call: Call<String>, t: Throwable) {}
-        })
+        webSocketManager?.sendCommand("set_mixer_volume", mapOf("app" to appName, "vol" to volume))
+    }
+
+    protected fun sendMicMute(mute: Boolean) {
+        webSocketManager?.sendCommand("set_mic_mute", mapOf("mute" to if (mute) 1 else 0))
     }
 
     protected fun killProcess(pid: Int, onComplete: () -> Unit = {}) {
-        currentApi?.killProcess(pid)?.enqueue(object : Callback<String> {
-            override fun onResponse(call: Call<String>, response: Response<String>) { onComplete() }
-            override fun onFailure(call: Call<String>, t: Throwable) {}
-        })
+        webSocketManager?.sendCommand("kill_process", mapOf("pid" to pid))
+        onComplete()
     }
 
     protected fun sendShutdownCommand() {
         showPowerActionDialog("выключить", "Выключение") {
-            currentApi?.shutdownPC()?.enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {}
-                override fun onFailure(call: Call<String>, t: Throwable) {}
-            })
+            webSocketManager?.sendCommand("shutdown")
         }
     }
 
     protected fun sendSleepCommand() {
         showPowerActionDialog("отправить в спящий режим", "Сон") {
-            currentApi?.sleepPC()?.enqueue(object : Callback<String> {
-                override fun onResponse(call: Call<String>, response: Response<String>) {}
-                override fun onFailure(call: Call<String>, t: Throwable) {}
-            })
+            webSocketManager?.sendCommand("sleep")
         }
     }
 

@@ -69,6 +69,10 @@ class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnSleep: ImageButton
     private val btnShutdown: ImageButton
     private var isMuted = false
+    
+    private var optimisticMute: Boolean? = null
+    private var optimisticMuteTime = 0L
+    private val OPTIMISTIC_TIMEOUT = 2500L
 
     init {
         val v = LayoutInflater.from(context).inflate(R.layout.widget_controls, this, true)
@@ -77,16 +81,36 @@ class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
         btnSleep = v.findViewById(R.id.sleep_button)
         btnShutdown = v.findViewById(R.id.shutdown_button)
     }
+    
     fun setCallbacks(onScreenshot: () -> Unit, onMicMute: (Boolean) -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
         btnScrenshot.setOnClickListener { onScreenshot() }
-        btnMic.setOnClickListener { onMicMute(!isMuted) }
+        btnMic.setOnClickListener { 
+            val newState = !isMuted
+            isMuted = newState
+            optimisticMute = newState
+            optimisticMuteTime = System.currentTimeMillis()
+            updateMicUI(newState)
+            onMicMute(newState) 
+        }
         btnSleep.setOnClickListener { onSleep() }
         btnShutdown.setOnClickListener { onShutdown() }
     }
-    override fun updateData(stats: PCStats) {
-        isMuted = stats.mic_muted
+
+    private fun updateMicUI(muted: Boolean) {
         val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
-        btnMic.setColorFilter(if (isMuted) Color.BLACK else themeColor)
+        btnMic.setColorFilter(if (muted) Color.BLACK else themeColor)
+    }
+
+    override fun updateData(stats: PCStats) {
+        val now = System.currentTimeMillis()
+        if (optimisticMute != null && now - optimisticMuteTime < OPTIMISTIC_TIMEOUT) {
+            isMuted = optimisticMute!!
+            updateMicUI(isMuted)
+            return
+        }
+        optimisticMute = null
+        isMuted = stats.mic_muted
+        updateMicUI(isMuted)
     }
 }
 
@@ -97,6 +121,11 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnPlayPause: ImageButton
     private val btnNext: ImageButton
     private var onCommand: ((String) -> Unit)? = null
+    
+    private var currentStatus: Int = 0
+    private var optimisticStatus: Int? = null
+    private var optimisticStatusTime = 0L
+    private val OPTIMISTIC_TIMEOUT = 2500L
 
     init {
         val root = LinearLayout(context).apply {
@@ -167,8 +196,20 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
         addView(root)
 
         btnPrev.setOnClickListener { onCommand?.invoke("prev") }
-        btnPlayPause.setOnClickListener { onCommand?.invoke("play_pause") }
+        btnPlayPause.setOnClickListener { 
+            // 4 is usually Playing
+            val newState = if (currentStatus == 4) 0 else 4 
+            currentStatus = newState
+            optimisticStatus = newState
+            optimisticStatusTime = System.currentTimeMillis()
+            updatePlayPauseIcon(newState)
+            onCommand?.invoke("play_pause") 
+        }
         btnNext.setOnClickListener { onCommand?.invoke("next") }
+    }
+
+    private fun updatePlayPauseIcon(status: Int) {
+        btnPlayPause.setImageResource(if (status == 4) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     fun setCallbacks(onCommand: (String) -> Unit) {
@@ -179,7 +220,15 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
         stats.media?.let { media ->
             titleText.text = media.title.ifEmpty { "No Media" }
             artistText.text = media.artist
-            btnPlayPause.setImageResource(if (media.status == 4) R.drawable.ic_pause else R.drawable.ic_play)
+            
+            val now = System.currentTimeMillis()
+            if (optimisticStatus != null && now - optimisticStatusTime < OPTIMISTIC_TIMEOUT) {
+                currentStatus = optimisticStatus!!
+            } else {
+                optimisticStatus = null
+                currentStatus = media.status
+            }
+            updatePlayPauseIcon(currentStatus)
             visibility = View.VISIBLE
         } ?: run {
             titleText.text = "No Media"
@@ -193,6 +242,9 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
     private val container: LinearLayout
     private var onVolumeChange: ((String, Int) -> Unit)? = null
     private val activeSliders = mutableSetOf<String>()
+    
+    private val optimisticVolumes = mutableMapOf<String, Pair<Int, Long>>()
+    private val OPTIMISTIC_TIMEOUT = 3000L
 
     init {
         val root = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -229,8 +281,11 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
                 val slider = view.findViewById<SeekBar>(R.id.appVolumeSlider)
                 val text = view.findViewById<TextView>(R.id.appVolumePercentText)
                 view.findViewById<TextView>(R.id.appNameText).text = session.name
-                slider.progress = session.volume
-                text.text = "${session.volume}%"
+                
+                val volToShow = getVolToShow(session.name, session.volume)
+                slider.progress = volToShow
+                text.text = "$volToShow%"
+                
                 slider.progressTintList = android.content.res.ColorStateList.valueOf(themeColor)
                 slider.thumbTintList = android.content.res.ColorStateList.valueOf(themeColor)
                 slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -238,7 +293,9 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
                     override fun onStartTrackingTouch(s: SeekBar?) { activeSliders.add(session.name) }
                     override fun onStopTrackingTouch(s: SeekBar?) {
                         activeSliders.remove(session.name)
-                        onVolumeChange?.invoke(session.name, slider.progress)
+                        val vol = slider.progress
+                        optimisticVolumes[session.name] = Pair(vol, System.currentTimeMillis())
+                        onVolumeChange?.invoke(session.name, vol)
                     }
                 })
                 container.addView(view)
@@ -248,12 +305,24 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
                 val view = container.getChildAt(i)
                 val name = view.tag as String
                 if (name !in activeSliders) {
-                    stats.audio_sessions.find { it.name == name }?.let {
-                        view.findViewById<SeekBar>(R.id.appVolumeSlider).progress = it.volume
-                        view.findViewById<TextView>(R.id.appVolumePercentText).text = "${it.volume}%"
+                    stats.audio_sessions.find { it.name == name }?.let { session ->
+                        val volToShow = getVolToShow(name, session.volume)
+                        view.findViewById<SeekBar>(R.id.appVolumeSlider).progress = volToShow
+                        view.findViewById<TextView>(R.id.appVolumePercentText).text = "$volToShow%"
                     }
                 }
             }
+        }
+    }
+    
+    private fun getVolToShow(name: String, serverVol: Int): Int {
+        val now = System.currentTimeMillis()
+        val optimistic = optimisticVolumes[name]
+        return if (optimistic != null && now - optimistic.second < OPTIMISTIC_TIMEOUT) {
+            optimistic.first
+        } else {
+            optimisticVolumes.remove(name)
+            serverVol
         }
     }
 }

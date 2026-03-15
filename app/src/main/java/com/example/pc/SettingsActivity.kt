@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
+import androidx.appcompat.widget.SwitchCompat
 
 class SettingsActivity : BaseActivity() {
 
@@ -11,10 +12,31 @@ class SettingsActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
-        findViewById<Button>(R.id.btn_theme_purple).setOnClickListener { saveTheme("PURPLE") }
-        findViewById<Button>(R.id.btn_theme_turquoise).setOnClickListener { saveTheme("TURQUOISE") }
-        findViewById<Button>(R.id.btn_theme_orange).setOnClickListener { saveTheme("ORANGE") }
-        findViewById<Button>(R.id.btn_theme_green).setOnClickListener { saveTheme("GREEN") }
+        val prefs = getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        val vibrationSwitch = findViewById<SwitchCompat>(R.id.switch_vibration)
+        vibrationSwitch.isChecked = prefs.getBoolean("VIBRATION_ENABLED", true)
+        
+        vibrationSwitch.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("VIBRATION_ENABLED", isChecked).apply()
+            if (isChecked) vibrate()
+        }
+
+        findViewById<Button>(R.id.btn_theme_purple).setOnClickListener { 
+            vibrate()
+            saveTheme("PURPLE") 
+        }
+        findViewById<Button>(R.id.btn_theme_turquoise).setOnClickListener { 
+            vibrate()
+            saveTheme("TURQUOISE") 
+        }
+        findViewById<Button>(R.id.btn_theme_orange).setOnClickListener { 
+            vibrate()
+            saveTheme("ORANGE") 
+        }
+        findViewById<Button>(R.id.btn_theme_green).setOnClickListener { 
+            vibrate()
+            saveTheme("GREEN") 
+        }
     }
 
     private fun saveTheme(theme: String) {

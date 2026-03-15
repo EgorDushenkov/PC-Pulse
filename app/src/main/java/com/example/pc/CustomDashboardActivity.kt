@@ -65,8 +65,14 @@ class CustomDashboardActivity : BaseActivity() {
         addWidgetButton = findViewById(R.id.add_widget_button)
         addWidgetCard = findViewById(R.id.add_widget_card)
 
-        editDashboardButton.setOnClickListener { toggleEditMode() }
-        addWidgetButton.setOnClickListener { showAddWidgetDialog() }
+        editDashboardButton.setOnClickListener { 
+            vibrate()
+            toggleEditMode() 
+        }
+        addWidgetButton.setOnClickListener { 
+            vibrate()
+            showAddWidgetDialog() 
+        }
 
         dashboardCanvas.post {
             cellWidth = dashboardCanvas.width / gridColumns
@@ -173,6 +179,7 @@ class CustomDashboardActivity : BaseActivity() {
 
     private fun showDeleteDialog(widgetView: View) {
         AlertDialog.Builder(this).setTitle("Удалить?").setMessage("Удалить виджет?").setPositiveButton("Да") { _, _ ->
+            vibrate()
             widgetViews[widgetView]?.let { config ->
                 testLayout = testLayout.copy(widgets = testLayout.widgets - config)
                 displayDashboard(testLayout)
@@ -184,6 +191,7 @@ class CustomDashboardActivity : BaseActivity() {
         val types = WidgetType.entries.toTypedArray()
         val names = types.map { it.name.lowercase().replace('_', ' ').replaceFirstChar { c -> c.uppercase() } }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Добавить виджет").setItems(names) { _, which ->
+            vibrate()
             val type = types[which]
             if (type == WidgetType.ACTION_BUTTON) {
                 showActionButtonConfigDialog { label, path ->
@@ -216,6 +224,7 @@ class CustomDashboardActivity : BaseActivity() {
             .setTitle("Настройка кнопки")
             .setView(layout)
             .setPositiveButton("Добавить") { _, _ ->
+                vibrate()
                 onSave(editLabel.text.toString(), editPath.text.toString())
             }
             .setNegativeButton("Отмена", null)
@@ -231,6 +240,7 @@ class CustomDashboardActivity : BaseActivity() {
         val dh = deleteHandles[view]!!
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                vibrate(5)
                 dX = view.x - event.rawX
                 dY = view.y - event.rawY
                 view.bringToFront(); rh.bringToFront(); dh.bringToFront()
@@ -242,6 +252,7 @@ class CustomDashboardActivity : BaseActivity() {
                 dh.x = nx; dh.y = ny
             }
             MotionEvent.ACTION_UP -> {
+                vibrate(5)
                 val cfg = widgetViews[view] ?: return
                 val gx = (view.x / cellWidth).roundToInt().coerceIn(0, gridColumns - cfg.width)
                 val gy = (view.y / cellHeight).roundToInt().coerceIn(0, gridRows - cfg.height)
@@ -256,6 +267,7 @@ class CustomDashboardActivity : BaseActivity() {
         val dh = deleteHandles[view]!!
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                vibrate(5)
                 dX = event.rawX; dY = event.rawY
                 startWidth = lp.width; startHeight = lp.height
                 view.bringToFront(); rh.bringToFront(); dh.bringToFront()
@@ -268,6 +280,7 @@ class CustomDashboardActivity : BaseActivity() {
                 dh.x = view.x; dh.y = view.y
             }
             MotionEvent.ACTION_UP -> {
+                vibrate(5)
                 val cfg = widgetViews[view] ?: return
                 val nw = ((lp.width + 16) / cellWidth.toFloat()).roundToInt().coerceIn(1, gridColumns - cfg.x)
                 val nh = ((lp.height + 16) / cellHeight.toFloat()).roundToInt().coerceIn(1, gridRows - cfg.y)
@@ -321,6 +334,7 @@ class CustomDashboardActivity : BaseActivity() {
         return WidgetFactory.create(
             config = config,
             context = this,
+            onVibrate = { vibrate() },
             onScreenshot = ::showScreenshotDialog,
             onMicMute = ::sendMicMute,
             onSleep = ::sendSleepCommand,

@@ -38,6 +38,7 @@ class DashboardActivity : BaseActivity() {
         if (ip.isNotEmpty()) {
             dashIpText.text = "IP: $ip"
             openConstructorButton.setOnClickListener {
+                vibrate()
                 val intent = Intent(this, CustomDashboardActivity::class.java).apply {
                     putExtra("DEVICE_IP", ip)
                 }
@@ -113,16 +114,31 @@ class DashboardActivity : BaseActivity() {
             WidgetFactory.create(
                 config = WidgetConfig(WidgetType.CONTROLS, 0, 0, 1, 1), 
                 context = this, 
+                onVibrate = { vibrate() },
                 onScreenshot = ::showScreenshotDialog, 
                 onMicMute = ::sendMicMute,
                 onSleep = ::sendSleepCommand, 
                 onShutdown = ::sendShutdownCommand
             ) 
         }
-        updateDynamicWidget(WidgetType.AUDIO_MIXER) { WidgetFactory.create(WidgetConfig(WidgetType.AUDIO_MIXER, 0, 0, 1, 1), this, onVolumeChange = ::sendMixerVolume) }
+        updateDynamicWidget(WidgetType.AUDIO_MIXER) { 
+            WidgetFactory.create(
+                config = WidgetConfig(WidgetType.AUDIO_MIXER, 0, 0, 1, 1), 
+                context = this, 
+                onVibrate = { vibrate() },
+                onVolumeChange = ::sendMixerVolume
+            ) 
+        }
         updateDynamicWidget(WidgetType.STORAGE) { WidgetFactory.create(WidgetConfig(WidgetType.STORAGE, 0, 0, 1, 1), this) }
         updateDynamicWidget(WidgetType.COOLING) { WidgetFactory.create(WidgetConfig(WidgetType.COOLING, 0, 0, 1, 1), this) }
-        updateDynamicWidget(WidgetType.TOP_PROCESSES) { WidgetFactory.create(WidgetConfig(WidgetType.TOP_PROCESSES, 0, 0, 1, 1), this, onKill = { pid -> killProcess(pid) }) }
+        updateDynamicWidget(WidgetType.TOP_PROCESSES) { 
+            WidgetFactory.create(
+                config = WidgetConfig(WidgetType.TOP_PROCESSES, 0, 0, 1, 1), 
+                context = this, 
+                onVibrate = { vibrate() },
+                onKill = { pid -> killProcess(pid) }
+            ) 
+        }
 
         containers.values.forEach { (it.getChildAt(0) as? UpdatableWidget)?.updateData(s) }
     }

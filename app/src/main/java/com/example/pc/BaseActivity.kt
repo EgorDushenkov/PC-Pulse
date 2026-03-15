@@ -7,8 +7,12 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.MediaStore
 import android.util.Log
+import android.view.HapticFeedbackConstants
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -57,6 +61,26 @@ abstract class BaseActivity : AppCompatActivity() {
             else -> R.style.AppTheme_Purple
         }
         setTheme(themeRes)
+    }
+
+    fun vibrate(duration: Long = 10) {
+        val prefs = getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("VIBRATION_ENABLED", true)) return
+
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createOneShot(duration, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(duration)
+        }
     }
 
     protected fun showScreenshotDialog() {

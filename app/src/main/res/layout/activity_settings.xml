@@ -56,6 +56,42 @@
         android:layout_height="wrap_content"
         android:text="Зеленая тема"
         android:backgroundTint="@color/matrix_green"
-        android:textColor="@color/white" />
+        android:textColor="@color/white"
+        android:layout_marginBottom="24dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/text_gray"
+        android:alpha="0.3"
+        android:layout_marginBottom="24dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Виброотдача"
+            android:textColor="@color/text_white"
+            android:textSize="18sp" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_vibration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Легкая вибрация при нажатии на кнопки и изменении громкости"
+        android:textColor="@color/text_gray"
+        android:textSize="14sp"
+        android:layout_marginTop="4dp" />
 
 </LinearLayout>

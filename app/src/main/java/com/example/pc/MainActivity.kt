@@ -64,10 +64,12 @@ class MainActivity : BaseActivity() {
         loadDevices()
 
         fabAdd.setOnClickListener {
+            vibrate()
             showAddDeviceDialog()
         }
         
         fabSettings.setOnClickListener {
+            vibrate()
             val intent = Intent(this, SettingsActivity::class.java)
             startActivity(intent)
         }
@@ -78,6 +80,7 @@ class MainActivity : BaseActivity() {
     private fun setupRecyclerView() {
         deviceAdapter = DeviceAdapter(devices,
             onItemClick = { device ->
+                vibrate()
                 if (device.isOnline) {
                     val intent = Intent(this, DashboardActivity::class.java)
                     intent.putExtra("DEVICE_IP", device.ipAddress)
@@ -87,6 +90,7 @@ class MainActivity : BaseActivity() {
                 }
             },
             onItemLongClick = { device ->
+                vibrate(20)
                 showDeleteDeviceDialog(device)
             }
         )
@@ -102,6 +106,7 @@ class MainActivity : BaseActivity() {
         input.setSingleLine()
         builder.setView(input)
         builder.setPositiveButton("Сохранить") { _, _ ->
+            vibrate()
             val ip = input.text.toString().trim()
             if (ip.isNotEmpty() && devices.none { it.ipAddress == ip }) {
                 val newDevice = Device(ip)
@@ -119,6 +124,7 @@ class MainActivity : BaseActivity() {
             .setTitle("Удалить устройство?")
             .setMessage("Вы уверены?")
             .setPositiveButton("Удалить") { _, _ ->
+                vibrate()
                 val index = devices.indexOf(device)
                 if (index != -1) {
                     devices.removeAt(index)

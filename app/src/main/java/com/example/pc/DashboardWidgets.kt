@@ -53,9 +53,10 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
         addView(button)
     }
 
-    fun setup(config: WidgetConfig, onClick: (String) -> Unit) {
+    fun setup(config: WidgetConfig, onVibrate: () -> Unit, onClick: (String) -> Unit) {
         button.text = config.label ?: "Action"
         button.setOnClickListener {
+            onVibrate()
             config.action?.let { onClick(it) }
         }
     }
@@ -82,9 +83,10 @@ class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
         btnShutdown = v.findViewById(R.id.shutdown_button)
     }
     
-    fun setCallbacks(onScreenshot: () -> Unit, onMicMute: (Boolean) -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
-        btnScrenshot.setOnClickListener { onScreenshot() }
+    fun setCallbacks(onVibrate: () -> Unit, onScreenshot: () -> Unit, onMicMute: (Boolean) -> Unit, onSleep: () -> Unit, onShutdown: () -> Unit) {
+        btnScrenshot.setOnClickListener { onVibrate(); onScreenshot() }
         btnMic.setOnClickListener { 
+            onVibrate()
             val newState = !isMuted
             isMuted = newState
             optimisticMute = newState
@@ -92,8 +94,8 @@ class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
             updateMicUI(newState)
             onMicMute(newState) 
         }
-        btnSleep.setOnClickListener { onSleep() }
-        btnShutdown.setOnClickListener { onShutdown() }
+        btnSleep.setOnClickListener { onVibrate(); onSleep() }
+        btnShutdown.setOnClickListener { onVibrate(); onShutdown() }
     }
 
     private fun updateMicUI(muted: Boolean) {
@@ -121,6 +123,7 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnPlayPause: ImageButton
     private val btnNext: ImageButton
     private var onCommand: ((String) -> Unit)? = null
+    private var onVibrate: (() -> Unit)? = null
     
     private var currentStatus: Int = 0
     private var optimisticStatus: Int? = null
@@ -195,8 +198,9 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
         root.addView(controls)
         addView(root)
 
-        btnPrev.setOnClickListener { onCommand?.invoke("prev") }
+        btnPrev.setOnClickListener { onVibrate?.invoke(); onCommand?.invoke("prev") }
         btnPlayPause.setOnClickListener { 
+            onVibrate?.invoke()
             // 4 is usually Playing
             val newState = if (currentStatus == 4) 0 else 4 
             currentStatus = newState
@@ -205,14 +209,15 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
             updatePlayPauseIcon(newState)
             onCommand?.invoke("play_pause") 
         }
-        btnNext.setOnClickListener { onCommand?.invoke("next") }
+        btnNext.setOnClickListener { onVibrate?.invoke(); onCommand?.invoke("next") }
     }
 
     private fun updatePlayPauseIcon(status: Int) {
         btnPlayPause.setImageResource(if (status == 4) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
-    fun setCallbacks(onCommand: (String) -> Unit) {
+    fun setCallbacks(onVibrate: () -> Unit, onCommand: (String) -> Unit) {
+        this.onVibrate = onVibrate
         this.onCommand = onCommand
     }
 
@@ -241,6 +246,7 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
 class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
     private val container: LinearLayout
     private var onVolumeChange: ((String, Int) -> Unit)? = null
+    private var onVibrate: (() -> Unit)? = null
     private val activeSliders = mutableSetOf<String>()
     
     private val optimisticVolumes = mutableMapOf<String, Pair<Int, Long>>()
@@ -265,7 +271,10 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
         addView(root)
     }
 
-    fun setCallbacks(onVolumeChange: (String, Int) -> Unit) { this.onVolumeChange = onVolumeChange }
+    fun setCallbacks(onVibrate: () -> Unit, onVolumeChange: (String, Int) -> Unit) { 
+        this.onVibrate = onVibrate
+        this.onVolumeChange = onVolumeChange 
+    }
 
     @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
@@ -289,13 +298,20 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
                 slider.progressTintList = android.content.res.ColorStateList.valueOf(themeColor)
                 slider.thumbTintList = android.content.res.ColorStateList.valueOf(themeColor)
                 slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) { if (f) text.text = "$p%" }
+                    override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) { 
+                        if (f) {
+                            text.text = "$p%"
+                            // Subtle vibration during movement
+                            if (p % 2 == 0) onVibrate?.invoke() 
+                        }
+                    }
                     override fun onStartTrackingTouch(s: SeekBar?) { activeSliders.add(session.name) }
                     override fun onStopTrackingTouch(s: SeekBar?) {
                         activeSliders.remove(session.name)
                         val vol = slider.progress
                         optimisticVolumes[session.name] = Pair(vol, System.currentTimeMillis())
                         onVolumeChange?.invoke(session.name, vol)
+                        onVibrate?.invoke()
                     }
                 })
                 container.addView(view)
@@ -340,7 +356,11 @@ class StorageWidgetView(context: Context) : BaseWidgetView(context) {
         stats.disks.forEach { disk ->
             val v = LayoutInflater.from(context).inflate(R.layout.item_widget_disk, container, false)
             v.findViewById<TextView>(R.id.disk_name).text = disk.dev.replace("\\", "")
-            v.findViewById<TextView>(R.id.disk_value).text = "${disk.used.toInt()} / ${disk.total.toInt()} GB"
+            
+            // Fix for "0 / Total GB" bug: if used is 0 but percent is not, calculate used manually
+            val usedValue = if (disk.used > 0.1) disk.used else (disk.total * (disk.percent / 100.0)).toFloat()
+            v.findViewById<TextView>(R.id.disk_value).text = "${usedValue.toInt()} / ${disk.total.toInt()} GB"
+            
             val pb = v.findViewById<ProgressBar>(R.id.disk_progress)
             pb.progress = disk.percent.toInt()
             pb.progressTintList = android.content.res.ColorStateList.valueOf(themeColor)
@@ -371,6 +391,7 @@ class CoolingWidgetView(context: Context) : BaseWidgetView(context) {
 class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
     private val container: LinearLayout
     private var onKill: ((Int) -> Unit)? = null
+    private var onVibrate: (() -> Unit)? = null
     init {
         val c = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         c.addView(TextView(context).apply {
@@ -381,7 +402,10 @@ class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
         container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         c.addView(container); addView(c)
     }
-    fun setCallbacks(onKill: (Int) -> Unit) { this.onKill = onKill }
+    fun setCallbacks(onVibrate: () -> Unit, onKill: (Int) -> Unit) { 
+        this.onVibrate = onVibrate
+        this.onKill = onKill 
+    }
     override fun updateData(stats: PCStats) {
         container.removeAllViews()
         stats.procs.take(5).forEach { proc ->
@@ -400,7 +424,7 @@ class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
                 setTextColor(Color.RED)
                 textSize = 16f
                 setPadding(8f.dpToPx(context).toInt(), 0, 4f.dpToPx(context).toInt(), 0)
-                setOnClickListener { onKill?.invoke(proc.pid) }
+                setOnClickListener { onVibrate?.invoke(); onKill?.invoke(proc.pid) }
             })
             container.addView(row)
         }
@@ -448,14 +472,17 @@ class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
     private val upText: TextView
     init {
         val l = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
         l.addView(TextView(context).apply {
-            text = "NETWORK"; setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
-            textSize = 12f; paint.isFakeBoldText = true; gravity = Gravity.CENTER
+            text = "NETWORK"
+            setTextColor(themeColor)
+            textSize = 12f; paint.isFakeBoldText = true
         })
-        downText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setPadding(0, 16f.dpToPx(context).toInt(), 0, 8f.dpToPx(context).toInt()) }
-        upText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER }
+        downText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; paint.isFakeBoldText = true }
+        upText = TextView(context).apply { setTextColor(Color.LTGRAY); textSize = 12f }
         l.addView(downText); l.addView(upText); addView(l)
     }
+    @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
         downText.text = "↓ ${stats.network.down_kbps.toInt()} KB/s"
         upText.text = "↑ ${stats.network.up_kbps.toInt()} KB/s"
@@ -463,19 +490,47 @@ class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
 }
 
 object WidgetFactory {
-    fun create(config: WidgetConfig, context: Context, onScreenshot: () -> Unit = {}, onMicMute: (Boolean) -> Unit = {}, onSleep: () -> Unit = {}, onShutdown: () -> Unit = {}, onVolumeChange: (String, Int) -> Unit = {_,_ ->}, onKill: (Int) -> Unit = {}, onRunCommand: (String) -> Unit = {}, onMediaCommand: (String) -> Unit = {}): View {
+    fun create(
+        config: WidgetConfig,
+        context: Context,
+        onVibrate: () -> Unit = {},
+        onScreenshot: (() -> Unit)? = null,
+        onMicMute: ((Boolean) -> Unit)? = null,
+        onSleep: (() -> Unit)? = null,
+        onShutdown: (() -> Unit)? = null,
+        onVolumeChange: ((String, Int) -> Unit)? = null,
+        onKill: ((Int) -> Unit)? = null,
+        onRunCommand: ((String) -> Unit)? = null,
+        onMediaCommand: ((String) -> Unit)? = null
+    ): View {
         return when (config.type) {
-            WidgetType.CONTROLS -> ControlsWidgetView(context).apply { setCallbacks(onScreenshot, onMicMute, onSleep, onShutdown) }
-            WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply { setCallbacks(onVolumeChange) }
+            WidgetType.CONTROLS -> ControlsWidgetView(context).apply {
+                setCallbacks(
+                    onVibrate,
+                    onScreenshot ?: {},
+                    onMicMute ?: {},
+                    onSleep ?: {},
+                    onShutdown ?: {}
+                )
+            }
+            WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply {
+                setCallbacks(onVibrate, onVolumeChange ?: { _, _ -> })
+            }
             WidgetType.STORAGE -> StorageWidgetView(context)
             WidgetType.COOLING -> CoolingWidgetView(context)
-            WidgetType.TOP_PROCESSES -> TopProcessesWidgetView(context).apply { setCallbacks(onKill) }
+            WidgetType.TOP_PROCESSES -> TopProcessesWidgetView(context).apply {
+                setCallbacks(onVibrate, onKill ?: {})
+            }
             WidgetType.CPU -> CpuWidgetView(context)
             WidgetType.RAM -> RamWidgetView(context)
             WidgetType.GPU -> GpuWidgetView(context)
             WidgetType.NETWORK -> NetworkWidgetView(context)
-            WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply { setup(config, onRunCommand) }
-            WidgetType.MEDIA_PLAYER -> MediaPlayerWidgetView(context).apply { setCallbacks(onMediaCommand) }
+            WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply {
+                setup(config, onVibrate, onRunCommand ?: {})
+            }
+            WidgetType.MEDIA_PLAYER -> MediaPlayerWidgetView(context).apply {
+                setCallbacks(onVibrate, onMediaCommand ?: {})
+            }
         }
     }
 }

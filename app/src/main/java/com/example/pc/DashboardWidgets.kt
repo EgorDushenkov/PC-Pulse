@@ -119,19 +119,20 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
         borderPaint.color = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
         val margin = borderPaint.strokeWidth / 2f
         rectF.set(margin, margin, width.toFloat() - margin, height.toFloat() - margin)
-        val r = radius - margin
+        val r = (radius - margin).coerceAtLeast(0f)
 
         if (appState == 1) {
-            // Рамка на половину (снизу)
-            canvas.drawArc(rectF, 0f, 180f, false, borderPaint)
+            // Рамка на половину (снизу) по контуру скругления
+            canvas.save()
+            canvas.clipRect(0f, height / 2f, width.toFloat(), height.toFloat())
+            canvas.drawRoundRect(rectF, r, r, borderPaint)
+            canvas.restore()
         } else if (appState == 2) {
-            // Полная рамка
+            // Полная рамка по контуру
             canvas.drawRoundRect(rectF, r, r, borderPaint)
         }
     }
 }
-
-// ... Остальные виджеты (ControlsWidgetView, MediaPlayerWidgetView и т.д.) ...
 
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnScrenshot: ImageButton

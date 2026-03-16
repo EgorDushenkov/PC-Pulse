@@ -65,7 +65,7 @@ class CustomDashboardActivity : BaseActivity() {
         addWidgetButton = findViewById(R.id.add_widget_button)
         addWidgetCard = findViewById(R.id.add_widget_card)
 
-         editDashboardButton.setOnClickListener {
+        editDashboardButton.setOnClickListener {
             vibrate()
             toggleEditMode() 
         }
@@ -342,13 +342,23 @@ class CustomDashboardActivity : BaseActivity() {
             onVolumeChange = ::sendMixerVolume,
             onKill = { pid -> killProcess(pid) },
             onRunCommand = { path -> sendRunCommand(path) },
-            onMediaCommand = { cmd -> sendMediaCommand(cmd) }
+            onMediaCommand = { cmd -> sendMediaCommand(cmd) },
+            onMinimizeCommand = ::sendMinimizeCommand,
+            onCloseCommand = ::sendCloseAppCommand
         ) as? CardView
     }
 
     private fun sendRunCommand(path: String) {
         webSocketManager?.sendCommand("run", mapOf("path" to path))
         Toast.makeText(this, "Команда отправлена", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun sendMinimizeCommand() {
+        webSocketManager?.sendCommand("minimize_app", emptyMap())
+    }
+
+    private fun sendCloseAppCommand(appName: String) {
+        webSocketManager?.sendCommand("close_app", mapOf("name" to appName))
     }
 
     private fun sendMediaCommand(cmd: String) {

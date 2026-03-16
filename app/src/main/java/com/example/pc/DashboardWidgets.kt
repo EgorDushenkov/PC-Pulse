@@ -2,7 +2,10 @@ package com.example.pc
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.Gravity
@@ -42,7 +45,17 @@ abstract class BaseWidgetView @JvmOverloads constructor(
 
 class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
     private val button: Button
+    private var config: WidgetConfig? = null
+    private var appState = 0 // 0: not running, 1: background, 2: active
+    private val borderPaint = Paint().apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 10f
+        isAntiAlias = true
+    }
+    private val rectF = RectF()
+
     init {
+        setWillNotDraw(false)
         button = Button(context).apply {
             layoutParams = LayoutParams(-1, -1)
             setBackgroundColor(Color.TRANSPARENT)
@@ -53,16 +66,72 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
         addView(button)
     }
 
-    fun setup(config: WidgetConfig, onVibrate: () -> Unit, onClick: (String) -> Unit) {
+    fun setup(
+        config: WidgetConfig,
+        onVibrate: () -> Unit,
+        onRun: (String) -> Unit,
+        onMinimize: () -> Unit,
+        onClose: (String) -> Unit
+    ) {
+        this.config = config
         button.text = config.label ?: "Action"
+        
         button.setOnClickListener {
             onVibrate()
-            config.action?.let { onClick(it) }
+            val path = config.action ?: return@setOnClickListener
+            if (appState == 2) {
+                onMinimize()
+            } else {
+                onRun(path)
+            }
+        }
+
+        button.setOnLongClickListener {
+            onVibrate()
+            config.action?.let { path ->
+                val fileName = path.split("\\", "/").last().lowercase()
+                onClose(fileName)
+            }
+            true
         }
     }
 
-    override fun updateData(stats: PCStats) {}
+    override fun updateData(stats: PCStats) {
+        val path = config?.action ?: return
+        val fileName = path.split("\\", "/").last().lowercase()
+
+        val newState = when {
+            stats.active_app?.lowercase() == fileName -> 2
+            stats.running_apps.any { it.lowercase() == fileName } -> 1
+            else -> 0
+        }
+
+        if (newState != appState) {
+            appState = newState
+            invalidate()
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (appState == 0) return
+
+        borderPaint.color = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
+        val margin = borderPaint.strokeWidth / 2f
+        rectF.set(margin, margin, width.toFloat() - margin, height.toFloat() - margin)
+        val r = radius - margin
+
+        if (appState == 1) {
+            // Рамка на половину (снизу)
+            canvas.drawArc(rectF, 0f, 180f, false, borderPaint)
+        } else if (appState == 2) {
+            // Полная рамка
+            canvas.drawRoundRect(rectF, r, r, borderPaint)
+        }
+    }
 }
+
+// ... Остальные виджеты (ControlsWidgetView, MediaPlayerWidgetView и т.д.) ...
 
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnScrenshot: ImageButton
@@ -501,7 +570,9 @@ object WidgetFactory {
         onVolumeChange: ((String, Int) -> Unit)? = null,
         onKill: ((Int) -> Unit)? = null,
         onRunCommand: ((String) -> Unit)? = null,
-        onMediaCommand: ((String) -> Unit)? = null
+        onMediaCommand: ((String) -> Unit)? = null,
+        onMinimizeCommand: (() -> Unit)? = null,
+        onCloseCommand: ((String) -> Unit)? = null
     ): View {
         return when (config.type) {
             WidgetType.CONTROLS -> ControlsWidgetView(context).apply {
@@ -526,7 +597,13 @@ object WidgetFactory {
             WidgetType.GPU -> GpuWidgetView(context)
             WidgetType.NETWORK -> NetworkWidgetView(context)
             WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply {
-                setup(config, onVibrate, onRunCommand ?: {})
+                setup(
+                    config, 
+                    onVibrate, 
+                    onRunCommand ?: {},
+                    onMinimizeCommand ?: {},
+                    onCloseCommand ?: {}
+                )
             }
             WidgetType.MEDIA_PLAYER -> MediaPlayerWidgetView(context).apply {
                 setCallbacks(onVibrate, onMediaCommand ?: {})

@@ -16,7 +16,9 @@ data class PCStats(
     val volume: Int,
     val mic_muted: Boolean = false,
     val audio_sessions: List<MixerSession>,
-    val media: MediaData? = null
+    val media: MediaData? = null,
+    val active_app: String? = null,
+    val running_apps: List<String> = emptyList()
 )
 
 data class MediaData(

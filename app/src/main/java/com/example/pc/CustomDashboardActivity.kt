@@ -65,7 +65,7 @@ class CustomDashboardActivity : BaseActivity() {
         addWidgetButton = findViewById(R.id.add_widget_button)
         addWidgetCard = findViewById(R.id.add_widget_card)
 
-        editDashboardButton.setOnClickListener { 
+         editDashboardButton.setOnClickListener {
             vibrate()
             toggleEditMode() 
         }

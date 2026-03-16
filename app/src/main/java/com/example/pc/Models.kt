@@ -67,4 +67,5 @@ data class DashboardLayout(
 
 interface UpdatableWidget {
     fun updateData(stats: PCStats)
+    fun updateConfig(config: WidgetConfig) {}
 }

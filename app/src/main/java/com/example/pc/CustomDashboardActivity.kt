@@ -296,6 +296,7 @@ class CustomDashboardActivity : BaseActivity() {
             list[idx] = new
             testLayout = testLayout.copy(widgets = list)
             widgetViews[view] = new
+            (view as? UpdatableWidget)?.updateConfig(new)
             applyWidgetLayout(view, new, true)
         }
     }
@@ -382,8 +383,9 @@ class CustomDashboardActivity : BaseActivity() {
             for (i in 1 until gridColumns) c.drawLine(i * cw, 0f, i * cw, bounds.height().toFloat(), p)
             for (i in 1 until gridRows) c.drawLine(0f, i * ch, bounds.width().toFloat(), i * ch, p)
         }
-        override fun setAlpha(a: Int) { p.alpha = a }
-        override fun setColorFilter(f: android.graphics.ColorFilter?) { p.colorFilter = f }
-        override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+        override fun setAlpha(alpha: Int) {}
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+        @Suppress("DEPRECATION")
+        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
     }
 }

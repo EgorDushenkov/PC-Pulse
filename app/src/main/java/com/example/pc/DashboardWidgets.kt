@@ -11,6 +11,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -26,6 +27,19 @@ fun Context.getThemeColor(attr: Int): Int {
     val typedValue = TypedValue()
     theme.resolveAttribute(attr, typedValue, true)
     return typedValue.data
+}
+
+fun formatDeviceName(name: String): String {
+    return name
+        .replace("with Radeon Graphics", "", ignoreCase = true)
+        .replace("Processor", "", ignoreCase = true)
+        .replace("Graphics", "", ignoreCase = true)
+        .replace("Core(TM)", "", ignoreCase = true)
+        .replace("AMD", "", ignoreCase = true)
+        .replace("NVIDIA", "", ignoreCase = true)
+        .replace("Intel(R)", "", ignoreCase = true)
+        .replace("  ", " ")
+        .trim()
 }
 
 abstract class BaseWidgetView @JvmOverloads constructor(
@@ -504,18 +518,121 @@ class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
 abstract class SpeedometerWidgetView(context: Context) : BaseWidgetView(context) {
     protected val speedometer: SpeedometerView
     protected val detailText: TextView
+    protected val labelText: TextView
+    protected val rootLayout: LinearLayout
+    protected val textContainer: LinearLayout
+    protected var currentConfig: WidgetConfig? = null
+
     init {
-        val l = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        rootLayout = LinearLayout(context).apply { 
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LayoutParams(-1, -1)
+        }
+        
+        labelText = TextView(context).apply {
+            setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
+            textSize = 12f
+            paint.isFakeBoldText = true
+            gravity = Gravity.START
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setPadding(0, 0, 0, 4f.dpToPx(context).toInt()) }
+        }
+
         speedometer = SpeedometerView(context).apply {
             layoutParams = LinearLayout.LayoutParams(120f.dpToPx(context).toInt(), 0, 1f)
         }
-        detailText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 12f; gravity = Gravity.CENTER; setPadding(0, 8f.dpToPx(context).toInt(), 0, 0) }
-        l.addView(speedometer); l.addView(detailText); addView(l)
+        
+        detailText = TextView(context).apply { 
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setPadding(0, 8f.dpToPx(context).toInt(), 0, 0) 
+        }
+
+        textContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        
+        rootLayout.addView(labelText)
+        rootLayout.addView(speedometer)
+        rootLayout.addView(detailText)
+        addView(rootLayout)
+    }
+
+    override fun updateConfig(config: WidgetConfig) {
+        this.currentConfig = config
+        applyLayoutRules()
+    }
+
+    private fun applyLayoutRules() {
+        val config = currentConfig ?: return
+        
+        val isHorizontal = config.width > 2
+        
+        // Показываем название: 
+        // В горизонтальном режиме (ширина > 2) - если высота > 1
+        // В вертикальном режиме (ширина <= 2) - если высота >= 3
+        val showLabel = if (isHorizontal) config.height > 1 else config.height >= 3
+        labelText.visibility = if (showLabel) View.VISIBLE else View.GONE
+
+        // Чтобы избежать краша "child already has a parent", сначала отцепляем всех
+        (labelText.parent as? ViewGroup)?.removeView(labelText)
+        (speedometer.parent as? ViewGroup)?.removeView(speedometer)
+        (detailText.parent as? ViewGroup)?.removeView(detailText)
+        (textContainer.parent as? ViewGroup)?.removeView(textContainer)
+        rootLayout.removeAllViews()
+        textContainer.removeAllViews()
+
+        if (isHorizontal) {
+            rootLayout.orientation = LinearLayout.HORIZONTAL
+            rootLayout.gravity = Gravity.CENTER_VERTICAL
+            
+            // Adjust speedometer
+            speedometer.layoutParams = LinearLayout.LayoutParams(0, -1, 1f).apply {
+                setMargins(0, 0, 16f.dpToPx(context).toInt(), 0)
+            }
+            
+            textContainer.addView(labelText)
+            textContainer.addView(detailText)
+            
+            rootLayout.addView(speedometer)
+            rootLayout.addView(textContainer)
+            
+            labelText.layoutParams = LinearLayout.LayoutParams(-1, -2)
+            detailText.layoutParams = LinearLayout.LayoutParams(-1, -2)
+            detailText.gravity = Gravity.START
+            detailText.setPadding(0, 4f.dpToPx(context).toInt(), 0, 0)
+        } else {
+            // Revert to Vertical
+            rootLayout.orientation = LinearLayout.VERTICAL
+            rootLayout.gravity = Gravity.CENTER
+            
+            speedometer.layoutParams = LinearLayout.LayoutParams(120f.dpToPx(context).toInt(), 0, 1f).apply {
+                setMargins(0, 0, 0, 0)
+            }
+            
+            rootLayout.addView(labelText)
+            rootLayout.addView(speedometer)
+            rootLayout.addView(detailText)
+            
+            labelText.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { 
+                setPadding(0, 0, 0, 4f.dpToPx(context).toInt()) 
+            }
+            detailText.gravity = Gravity.CENTER
+            detailText.setPadding(0, 8f.dpToPx(context).toInt(), 0, 0)
+        }
+        rootLayout.requestLayout()
     }
 }
 
 class CpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
     override fun updateData(stats: PCStats) {
+        val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        val showNames = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
+        labelText.text = if (showNames) formatDeviceName(stats.cpu.name) else "CPU"
+        
         speedometer.setValue(stats.cpu.usage.toFloat())
         detailText.text = "${stats.cpu.freq.toInt()} MHz | ${stats.cpu.temp}°C"
     }
@@ -523,6 +640,7 @@ class CpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
 
 class RamWidgetView(context: Context) : SpeedometerWidgetView(context) {
     override fun updateData(stats: PCStats) {
+        labelText.text = "RAM"
         speedometer.setValue(stats.ram.usage.toFloat())
         detailText.text = "${stats.ram.used} / ${stats.ram.total} GB"
     }
@@ -530,7 +648,11 @@ class RamWidgetView(context: Context) : SpeedometerWidgetView(context) {
 
 class GpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
     override fun updateData(stats: PCStats) {
+        val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        val showNames = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
+        
         stats.gpu.getOrNull(0)?.let { g ->
+            labelText.text = if (showNames) formatDeviceName(g.name) else "GPU"
             speedometer.setValue(g.load.toFloat())
             detailText.text = "${g.temp}°C | VRAM: ${g.mem_p}%"
         }
@@ -593,9 +715,9 @@ object WidgetFactory {
             WidgetType.TOP_PROCESSES -> TopProcessesWidgetView(context).apply {
                 setCallbacks(onVibrate, onKill ?: {})
             }
-            WidgetType.CPU -> CpuWidgetView(context)
-            WidgetType.RAM -> RamWidgetView(context)
-            WidgetType.GPU -> GpuWidgetView(context)
+            WidgetType.CPU -> CpuWidgetView(context).apply { updateConfig(config) }
+            WidgetType.RAM -> RamWidgetView(context).apply { updateConfig(config) }
+            WidgetType.GPU -> GpuWidgetView(context).apply { updateConfig(config) }
             WidgetType.NETWORK -> NetworkWidgetView(context)
             WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply {
                 setup(

@@ -21,6 +21,13 @@ class SettingsActivity : BaseActivity() {
             if (isChecked) vibrate()
         }
 
+        val deviceNamesSwitch = findViewById<SwitchCompat>(R.id.switch_device_names)
+        deviceNamesSwitch.isChecked = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
+        deviceNamesSwitch.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("SHOW_DEVICE_NAMES", isChecked).apply()
+            vibrate()
+        }
+
         findViewById<Button>(R.id.btn_theme_purple).setOnClickListener { 
             vibrate()
             saveTheme("PURPLE") 

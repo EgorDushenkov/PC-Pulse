@@ -1,12 +1,16 @@
 package com.example.pc
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.net.Uri
 import android.util.AttributeSet
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -22,11 +26,22 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 
 fun Context.getThemeColor(attr: Int): Int {
     val typedValue = TypedValue()
     theme.resolveAttribute(attr, typedValue, true)
     return typedValue.data
+}
+
+fun Context.findActivity(): Activity? {
+    var context = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
 }
 
 fun formatDeviceName(name: String): String {
@@ -59,6 +74,7 @@ abstract class BaseWidgetView @JvmOverloads constructor(
 
 class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
     private val button: Button
+    private val iconView: ImageView
     private var config: WidgetConfig? = null
     private var appState = 0 // 0: not running, 1: background, 2: active
     private val borderPaint = Paint().apply {
@@ -70,9 +86,19 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
 
     init {
         setWillNotDraw(false)
+        
+        iconView = ImageView(context).apply {
+            layoutParams = LayoutParams(-1, -1)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            visibility = View.GONE
+        }
+        addView(iconView)
+
         button = Button(context).apply {
             layoutParams = LayoutParams(-1, -1)
-            setBackgroundColor(Color.TRANSPARENT)
+            // Убираем фон и тени кнопки, чтобы видеть иконку под ней
+            background = null
+            stateListAnimator = null 
             setTextColor(Color.WHITE)
             textSize = 14f
             isAllCaps = false
@@ -88,7 +114,7 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
         onClose: (String) -> Unit
     ) {
         this.config = config
-        button.text = config.label ?: "Action"
+        updateUI()
         
         button.setOnClickListener {
             onVibrate()
@@ -108,6 +134,45 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
             }
             true
         }
+    }
+
+    private fun updateUI() {
+        val cfg = config ?: return
+        if (cfg.useIcon && !cfg.action.isNullOrEmpty()) {
+            button.text = ""
+            iconView.visibility = View.VISIBLE
+            
+            val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+            val serverIp = prefs.getString("SERVER_IP", "192.168.1.100") ?: "192.168.1.100"
+            
+            val encodedPath = Uri.encode(cfg.action)
+            val iconUrl = "http://$serverIp:5000/icon?path=$encodedPath"
+            
+            Log.d("ActionButton", "Loading icon: $iconUrl")
+
+            try {
+                // Используем applicationContext для Glide, чтобы избежать крашей при повороте/закрытии
+                Glide.with(context.applicationContext)
+                    .load(iconUrl)
+                    .diskCacheStrategy(DiskCacheStrategy.ALL)
+                    .placeholder(android.R.drawable.ic_menu_gallery)
+                    .error(android.R.drawable.ic_menu_report_image)
+                    .into(iconView)
+            } catch (e: Exception) {
+                Log.e("ActionButton", "Glide error", e)
+            }
+        } else {
+            button.text = cfg.label ?: "Action"
+            iconView.visibility = View.GONE
+            try {
+                Glide.with(context.applicationContext).clear(iconView)
+            } catch (e: Exception) {}
+        }
+    }
+
+    override fun updateConfig(config: WidgetConfig) {
+        this.config = config
+        updateUI()
     }
 
     override fun updateData(stats: PCStats) {
@@ -136,17 +201,17 @@ class ActionButtonWidgetView(context: Context) : BaseWidgetView(context) {
         val r = (radius - margin).coerceAtLeast(0f)
 
         if (appState == 1) {
-            // Рамка на половину (снизу) по контуру скругления
             canvas.save()
             canvas.clipRect(0f, height / 2f, width.toFloat(), height.toFloat())
             canvas.drawRoundRect(rectF, r, r, borderPaint)
             canvas.restore()
         } else if (appState == 2) {
-            // Полная рамка по контуру
             canvas.drawRoundRect(rectF, r, r, borderPaint)
         }
     }
 }
+
+// ... Остальные виджеты (Controls, MediaPlayer и т.д. без изменений) ...
 
 class ControlsWidgetView(context: Context) : BaseWidgetView(context) {
     private val btnScrenshot: ImageButton
@@ -285,7 +350,6 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
         btnPrev.setOnClickListener { onVibrate?.invoke(); onCommand?.invoke("prev") }
         btnPlayPause.setOnClickListener { 
             onVibrate?.invoke()
-            // 4 is usually Playing
             val newState = if (currentStatus == 4) 0 else 4 
             currentStatus = newState
             optimisticStatus = newState
@@ -388,7 +452,6 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
                     override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) { 
                         if (f) {
                             text.text = "$p%"
-                            // Subtle vibration during movement
                             if (p % 2 == 0) onVibrate?.invoke() 
                         }
                     }
@@ -460,11 +523,8 @@ class StorageWidgetView(context: Context) : BaseWidgetView(context) {
         stats.disks.forEach { disk ->
             val v = LayoutInflater.from(context).inflate(R.layout.item_widget_disk, container, false)
             v.findViewById<TextView>(R.id.disk_name).text = disk.dev.replace("\\", "")
-            
-            // Fix for "0 / Total GB" bug: if used is 0 but percent is not, calculate used manually
             val usedValue = if (disk.used > 0.1) disk.used else (disk.total * (disk.percent / 100.0)).toFloat()
             v.findViewById<TextView>(R.id.disk_value).text = "${usedValue.toInt()} / ${disk.total.toInt()} GB"
-            
             val pb = v.findViewById<ProgressBar>(R.id.disk_progress)
             pb.progress = disk.percent.toInt()
             pb.progressTintList = android.content.res.ColorStateList.valueOf(themeColor)
@@ -594,16 +654,9 @@ abstract class SpeedometerWidgetView(context: Context) : BaseWidgetView(context)
 
     private fun applyLayoutRules() {
         val config = currentConfig ?: return
-        
         val isHorizontal = config.width > 2
-        
-        // Показываем название: 
-        // В горизонтальном режиме (ширина > 2) - если высота > 1
-        // В вертикальном режиме (ширина <= 2) - если высота >= 3
         val showLabel = if (isHorizontal) config.height > 1 else config.height >= 3
         labelText.visibility = if (showLabel) View.VISIBLE else View.GONE
-
-        // Чтобы избежать краша "child already has a parent", сначала отцепляем всех
         (labelText.parent as? ViewGroup)?.removeView(labelText)
         (speedometer.parent as? ViewGroup)?.removeView(speedometer)
         (detailText.parent as? ViewGroup)?.removeView(detailText)
@@ -614,35 +667,26 @@ abstract class SpeedometerWidgetView(context: Context) : BaseWidgetView(context)
         if (isHorizontal) {
             rootLayout.orientation = LinearLayout.HORIZONTAL
             rootLayout.gravity = Gravity.CENTER_VERTICAL
-            
-            // Adjust speedometer
             speedometer.layoutParams = LinearLayout.LayoutParams(0, -1, 1f).apply {
                 setMargins(0, 0, 16f.dpToPx(context).toInt(), 0)
             }
-            
             textContainer.addView(labelText)
             textContainer.addView(detailText)
-            
             rootLayout.addView(speedometer)
             rootLayout.addView(textContainer)
-            
             labelText.layoutParams = LinearLayout.LayoutParams(-1, -2)
             detailText.layoutParams = LinearLayout.LayoutParams(-1, -2)
             detailText.gravity = Gravity.START
             detailText.setPadding(0, 4f.dpToPx(context).toInt(), 0, 0)
         } else {
-            // Revert to Vertical
             rootLayout.orientation = LinearLayout.VERTICAL
             rootLayout.gravity = Gravity.CENTER
-            
             speedometer.layoutParams = LinearLayout.LayoutParams(120f.dpToPx(context).toInt(), 0, 1f).apply {
                 setMargins(0, 0, 0, 0)
             }
-            
             rootLayout.addView(labelText)
             rootLayout.addView(speedometer)
             rootLayout.addView(detailText)
-            
             labelText.layoutParams = LinearLayout.LayoutParams(-1, -2).apply { 
                 setPadding(0, 0, 0, 4f.dpToPx(context).toInt()) 
             }
@@ -658,7 +702,6 @@ class CpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
         val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
         val showNames = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
         labelText.text = if (showNames) formatDeviceName(stats.cpu.name) else Localization.get(context, "CPU")
-        
         speedometer.setValue(stats.cpu.usage.toFloat())
         detailText.text = "${stats.cpu.freq.toInt()} MHz | ${stats.cpu.temp}°C"
     }
@@ -676,7 +719,6 @@ class GpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
     override fun updateData(stats: PCStats) {
         val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
         val showNames = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
-        
         stats.gpu.getOrNull(0)?.let { g ->
             labelText.text = if (showNames) formatDeviceName(g.name) else Localization.get(context, "GPU")
             speedometer.setValue(g.load.toFloat())
@@ -728,13 +770,7 @@ object WidgetFactory {
     ): View {
         return when (config.type) {
             WidgetType.CONTROLS -> ControlsWidgetView(context).apply {
-                setCallbacks(
-                    onVibrate,
-                    onScreenshot ?: {},
-                    onMicMute ?: {},
-                    onSleep ?: {},
-                    onShutdown ?: {}
-                )
+                setCallbacks(onVibrate, onScreenshot ?: {}, onMicMute ?: {}, onSleep ?: {}, onShutdown ?: {})
             }
             WidgetType.AUDIO_MIXER -> AudioMixerWidgetView(context).apply {
                 setCallbacks(onVibrate, onVolumeChange ?: { _, _ -> })
@@ -749,13 +785,7 @@ object WidgetFactory {
             WidgetType.GPU -> GpuWidgetView(context).apply { updateConfig(config) }
             WidgetType.NETWORK -> NetworkWidgetView(context)
             WidgetType.ACTION_BUTTON -> ActionButtonWidgetView(context).apply {
-                setup(
-                    config, 
-                    onVibrate, 
-                    onRunCommand ?: {},
-                    onMinimizeCommand ?: {},
-                    onCloseCommand ?: {}
-                )
+                setup(config, onVibrate, onRunCommand ?: {}, onMinimizeCommand ?: {}, onCloseCommand ?: {})
             }
             WidgetType.MEDIA_PLAYER -> MediaPlayerWidgetView(context).apply {
                 setCallbacks(onVibrate, onMediaCommand ?: {})

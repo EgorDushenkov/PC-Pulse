@@ -12,7 +12,6 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.MediaStore
 import android.util.Log
-import android.view.HapticFeedbackConstants
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -37,6 +36,12 @@ abstract class BaseActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         
         intent.getStringExtra("DEVICE_IP")?.let { ip ->
+            // Сохраняем IP в настройки, чтобы виджеты могли его достать
+            getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+                .edit()
+                .putString("SERVER_IP", ip)
+                .apply()
+
             currentApi = RetrofitClient.getClient(ip)
             
             webSocketManager = WebSocketManager(gson) { stats ->
@@ -107,28 +112,16 @@ abstract class BaseActivity : AppCompatActivity() {
                                                 saveBitmapToGallery(bitmap)
                                             }
                                             .show()
-                                    } else {
-                                        Toast.makeText(this@BaseActivity, "Ошибка: Не удалось декодировать изображение", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             } catch (e: Exception) {
-                                Log.e("Screenshot", "Error reading response body", e)
-                                runOnUiThread {
-                                    Toast.makeText(this@BaseActivity, "Ошибка чтения данных: ${e.message}", Toast.LENGTH_LONG).show()
-                                }
+                                Log.e("Screenshot", "Error", e)
                             }
                         }.start()
-                    } else {
-                        Toast.makeText(this@BaseActivity, "Ошибка: Пустой ответ от сервера", Toast.LENGTH_SHORT).show()
                     }
-                } else {
-                    Toast.makeText(this@BaseActivity, "Сервер вернул ошибку: ${response.code()}", Toast.LENGTH_SHORT).show()
                 }
             }
-
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                Toast.makeText(this@BaseActivity, "Ошибка сети: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
+            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {}
         })
     }
 
@@ -155,9 +148,7 @@ abstract class BaseActivity : AppCompatActivity() {
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
                 Toast.makeText(this, "Сохранено в галерею", Toast.LENGTH_SHORT).show()
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Ошибка сохранения: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        } catch (e: Exception) {}
     }
 
     protected fun sendMixerVolume(appName: String, volume: Int) {
@@ -174,15 +165,11 @@ abstract class BaseActivity : AppCompatActivity() {
     }
 
     protected fun sendShutdownCommand() {
-        showPowerActionDialog("выключить", "Выключение") {
-            webSocketManager?.sendCommand("shutdown")
-        }
+        showPowerActionDialog("выключить", "Выключение") { webSocketManager?.sendCommand("shutdown") }
     }
 
     protected fun sendSleepCommand() {
-        showPowerActionDialog("отправить в спящий режим", "Сон") {
-            webSocketManager?.sendCommand("sleep")
-        }
+        showPowerActionDialog("отправить в спящий режим", "Сон") { webSocketManager?.sendCommand("sleep") }
     }
 
     private fun showPowerActionDialog(actionName: String, title: String, onConfirm: () -> Unit) {

@@ -58,7 +58,8 @@ data class WidgetConfig(
     @SerializedName("width_span") val width: Int,
     @SerializedName("height_span") val height: Int,
     @SerializedName("label") val label: String? = null,
-    @SerializedName("action") val action: String? = null
+    @SerializedName("action") val action: String? = null,
+    @SerializedName("use_icon") val useIcon: Boolean = false
 )
 
 data class DashboardLayout(

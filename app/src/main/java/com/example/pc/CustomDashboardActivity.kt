@@ -13,6 +13,7 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -194,8 +195,8 @@ class CustomDashboardActivity : BaseActivity() {
             vibrate()
             val type = types[which]
             if (type == WidgetType.ACTION_BUTTON) {
-                showActionButtonConfigDialog { label, path ->
-                    val new = WidgetConfig(type, 0, 0, 2, 2, label, path)
+                showActionButtonConfigDialog { label, path, useIcon ->
+                    val new = WidgetConfig(type, 0, 0, 2, 2, label, path, useIcon)
                     testLayout = testLayout.copy(widgets = testLayout.widgets + new)
                     displayDashboard(testLayout)
                 }
@@ -210,22 +211,28 @@ class CustomDashboardActivity : BaseActivity() {
         }.setNegativeButton("Отмена", null).show()
     }
 
-    private fun showActionButtonConfigDialog(onSave: (String, String) -> Unit) {
+    private fun showActionButtonConfigDialog(onSave: (String, String, Boolean) -> Unit) {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+            setPadding(48, 32, 48, 32)
         }
         val editLabel = EditText(this).apply { hint = "Название кнопки (например, Steam)" }
         val editPath = EditText(this).apply { hint = "Путь к файлу или URL" }
+        val checkUseIcon = CheckBox(this).apply { 
+            text = "Иконка вместо названия"
+            setPadding(0, 24, 0, 0)
+        }
+        
         layout.addView(editLabel)
         layout.addView(editPath)
+        layout.addView(checkUseIcon)
 
         AlertDialog.Builder(this)
             .setTitle("Настройка кнопки")
             .setView(layout)
             .setPositiveButton("Добавить") { _, _ ->
                 vibrate()
-                onSave(editLabel.text.toString(), editPath.text.toString())
+                onSave(editLabel.text.toString(), editPath.text.toString(), checkUseIcon.isChecked)
             }
             .setNegativeButton("Отмена", null)
             .show()

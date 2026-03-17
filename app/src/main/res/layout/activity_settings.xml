@@ -7,6 +7,7 @@
     android:padding="16dp">
 
     <TextView
+        android:id="@+id/settings_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Настройки"
@@ -16,6 +17,7 @@
         android:layout_marginBottom="24dp" />
 
     <TextView
+        android:id="@+id/theme_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Тема приложения"
@@ -73,6 +75,7 @@
         android:gravity="center_vertical">
 
         <TextView
+            android:id="@+id/vibration_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -87,6 +90,7 @@
     </LinearLayout>
 
     <TextView
+        android:id="@+id/vibration_desc"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Легкая вибрация при нажатии на кнопки и изменении громкости"
@@ -102,6 +106,7 @@
         android:gravity="center_vertical">
 
         <TextView
+            android:id="@+id/device_names_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -116,9 +121,41 @@
     </LinearLayout>
 
     <TextView
+        android:id="@+id/device_names_desc"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Показывать конкретные названия (Ryzen 5 5600G) вместо CPU/GPU"
+        android:textColor="@color/text_gray"
+        android:textSize="14sp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="24dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/language_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Язык приложения"
+            android:textColor="@color/text_white"
+            android:textSize="18sp" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switch_language"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/language_desc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Переключение между Русским и Английским (RU/EN)"
         android:textColor="@color/text_gray"
         android:textSize="14sp"
         android:layout_marginTop="4dp" />

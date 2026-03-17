@@ -1,5 +1,6 @@
 package com.example.pc
 
+import android.content.Context
 import com.google.gson.annotations.SerializedName
 
 data class PCStats(
@@ -68,4 +69,25 @@ data class DashboardLayout(
 interface UpdatableWidget {
     fun updateData(stats: PCStats)
     fun updateConfig(config: WidgetConfig) {}
+}
+
+object Localization {
+    fun get(context: Context, key: String): String {
+        val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
+        val isRussian = prefs.getString("APP_LANGUAGE", "RU") == "RU"
+        
+        return when (key) {
+            "CPU" -> if (isRussian) "ПРОЦЕССОР" else "CPU"
+            "GPU" -> if (isRussian) "ВИДЕОКАРТА" else "GPU"
+            "RAM" -> if (isRussian) "ОЗУ" else "RAM"
+            "STORAGE" -> if (isRussian) "ХРАНИЛИЩЕ" else "STORAGE"
+            "COOLING" -> if (isRussian) "ОХЛАЖДЕНИЕ" else "COOLING"
+            "NETWORK" -> if (isRussian) "СЕТЬ" else "NETWORK"
+            "PROCESSES" -> if (isRussian) "ПРОЦЕССЫ" else "PROCESSES"
+            "AUDIO_MIXER" -> if (isRussian) "АУДИО МИКШЕР" else "AUDIO MIXER"
+            "NO_FANS" -> if (isRussian) "Вентиляторы не найдены" else "No fans detected"
+            "NO_MEDIA" -> if (isRussian) "Нет медиа" else "No Media"
+            else -> key
+        }
+    }
 }

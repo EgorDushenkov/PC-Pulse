@@ -307,7 +307,7 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
 
     override fun updateData(stats: PCStats) {
         stats.media?.let { media ->
-            titleText.text = media.title.ifEmpty { "No Media" }
+            titleText.text = media.title.ifEmpty { Localization.get(context, "NO_MEDIA") }
             artistText.text = media.artist
             
             val now = System.currentTimeMillis()
@@ -320,7 +320,7 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
             updatePlayPauseIcon(currentStatus)
             visibility = View.VISIBLE
         } ?: run {
-            titleText.text = "No Media"
+            titleText.text = Localization.get(context, "NO_MEDIA")
             artistText.text = ""
             btnPlayPause.setImageResource(R.drawable.ic_play)
         }
@@ -329,6 +329,7 @@ class MediaPlayerWidgetView(context: Context) : BaseWidgetView(context) {
 
 class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
     private val container: LinearLayout
+    private val titleText: TextView
     private var onVolumeChange: ((String, Int) -> Unit)? = null
     private var onVibrate: (() -> Unit)? = null
     private val activeSliders = mutableSetOf<String>()
@@ -338,13 +339,14 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
 
     init {
         val root = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(TextView(context).apply {
-            text = "AUDIO MIXER"
+        titleText = TextView(context).apply {
+            text = Localization.get(context, "AUDIO_MIXER")
             setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
             textSize = 12f
             paint.isFakeBoldText = true
             setPadding(0, 0, 0, 8f.dpToPx(context).toInt())
-        })
+        }
+        root.addView(titleText)
         val scroll = ScrollView(context).apply {
             isVerticalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(-1, -1)
@@ -362,6 +364,7 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
 
     @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
+        titleText.text = Localization.get(context, "AUDIO_MIXER")
         val current = stats.audio_sessions.map { it.name }.toSet()
         val existing = (0 until container.childCount).map { container.getChildAt(it).tag as String }.toSet()
 
@@ -429,12 +432,29 @@ class AudioMixerWidgetView(context: Context) : BaseWidgetView(context) {
 
 class StorageWidgetView(context: Context) : BaseWidgetView(context) {
     private val container: LinearLayout
+    private val titleText: TextView
     init {
-        val view = LayoutInflater.from(context).inflate(R.layout.widget_storage, this, true)
-        container = view.findViewById(R.id.disks_container)
+        val root = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        titleText = TextView(context).apply {
+            text = Localization.get(context, "STORAGE")
+            setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
+            textSize = 12f
+            paint.isFakeBoldText = true
+            setPadding(0, 0, 0, 4f.dpToPx(context).toInt())
+        }
+        root.addView(titleText)
+        val scroll = ScrollView(context).apply {
+            layoutParams = LayoutParams(-1, -1)
+            isVerticalScrollBarEnabled = false
+        }
+        container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(container)
+        root.addView(scroll)
+        addView(root)
     }
     @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
+        titleText.text = Localization.get(context, "STORAGE")
         container.removeAllViews()
         val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
         stats.disks.forEach { disk ->
@@ -455,34 +475,39 @@ class StorageWidgetView(context: Context) : BaseWidgetView(context) {
 
 class CoolingWidgetView(context: Context) : BaseWidgetView(context) {
     private val fansText: TextView
+    private val titleText: TextView
     init {
         val c = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        c.addView(TextView(context).apply {
-            text = "COOLING"
+        titleText = TextView(context).apply {
+            text = Localization.get(context, "COOLING")
             setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
             textSize = 12f; paint.isFakeBoldText = true
-        })
+        }
+        c.addView(titleText)
         fansText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 14f }
         c.addView(fansText)
         addView(c)
     }
     override fun updateData(stats: PCStats) {
+        titleText.text = Localization.get(context, "COOLING")
         val info = stats.fans.joinToString("\n") { "${it.name}: ${it.rpm} RPM" }
-        fansText.text = info.ifEmpty { "No fans detected" }
+        fansText.text = info.ifEmpty { Localization.get(context, "NO_FANS") }
     }
 }
 
 class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
     private val container: LinearLayout
+    private val titleText: TextView
     private var onKill: ((Int) -> Unit)? = null
     private var onVibrate: (() -> Unit)? = null
     init {
         val c = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        c.addView(TextView(context).apply {
-            text = "PROCESSES"
+        titleText = TextView(context).apply {
+            text = Localization.get(context, "PROCESSES")
             setTextColor(context.getThemeColor(androidx.appcompat.R.attr.colorPrimary))
             textSize = 12f; paint.isFakeBoldText = true
-        })
+        }
+        c.addView(titleText)
         container = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         c.addView(container); addView(c)
     }
@@ -491,6 +516,7 @@ class TopProcessesWidgetView(context: Context) : BaseWidgetView(context) {
         this.onKill = onKill 
     }
     override fun updateData(stats: PCStats) {
+        titleText.text = Localization.get(context, "PROCESSES")
         container.removeAllViews()
         stats.procs.take(5).forEach { proc ->
             val row = LinearLayout(context).apply {
@@ -631,7 +657,7 @@ class CpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
     override fun updateData(stats: PCStats) {
         val prefs = context.getSharedPreferences("PC_STATS_PREFS", Context.MODE_PRIVATE)
         val showNames = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
-        labelText.text = if (showNames) formatDeviceName(stats.cpu.name) else "CPU"
+        labelText.text = if (showNames) formatDeviceName(stats.cpu.name) else Localization.get(context, "CPU")
         
         speedometer.setValue(stats.cpu.usage.toFloat())
         detailText.text = "${stats.cpu.freq.toInt()} MHz | ${stats.cpu.temp}°C"
@@ -640,7 +666,7 @@ class CpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
 
 class RamWidgetView(context: Context) : SpeedometerWidgetView(context) {
     override fun updateData(stats: PCStats) {
-        labelText.text = "RAM"
+        labelText.text = Localization.get(context, "RAM")
         speedometer.setValue(stats.ram.usage.toFloat())
         detailText.text = "${stats.ram.used} / ${stats.ram.total} GB"
     }
@@ -652,7 +678,7 @@ class GpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
         val showNames = prefs.getBoolean("SHOW_DEVICE_NAMES", false)
         
         stats.gpu.getOrNull(0)?.let { g ->
-            labelText.text = if (showNames) formatDeviceName(g.name) else "GPU"
+            labelText.text = if (showNames) formatDeviceName(g.name) else Localization.get(context, "GPU")
             speedometer.setValue(g.load.toFloat())
             detailText.text = "${g.temp}°C | VRAM: ${g.mem_p}%"
         }
@@ -662,20 +688,23 @@ class GpuWidgetView(context: Context) : SpeedometerWidgetView(context) {
 class NetworkWidgetView(context: Context) : BaseWidgetView(context) {
     private val downText: TextView
     private val upText: TextView
+    private val titleText: TextView
     init {
         val l = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         val themeColor = context.getThemeColor(androidx.appcompat.R.attr.colorPrimary)
-        l.addView(TextView(context).apply {
-            text = "NETWORK"
+        titleText = TextView(context).apply {
+            text = Localization.get(context, "NETWORK")
             setTextColor(themeColor)
             textSize = 12f; paint.isFakeBoldText = true
-        })
+        }
+        l.addView(titleText)
         downText = TextView(context).apply { setTextColor(Color.WHITE); textSize = 16f; paint.isFakeBoldText = true }
         upText = TextView(context).apply { setTextColor(Color.LTGRAY); textSize = 12f }
         l.addView(downText); l.addView(upText); addView(l)
     }
     @SuppressLint("SetTextI18n")
     override fun updateData(stats: PCStats) {
+        titleText.text = Localization.get(context, "NETWORK")
         downText.text = "↓ ${stats.network.down_kbps.toInt()} KB/s"
         upText.text = "↑ ${stats.network.up_kbps.toInt()} KB/s"
     }
